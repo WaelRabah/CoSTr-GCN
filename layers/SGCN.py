@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 from torch import Tensor
-
+import continual as co
 
 def conv_init(conv):
     nn.init.kaiming_normal_(conv.weight, mode='fan_out')
@@ -45,7 +45,7 @@ class unit_gcn(nn.Module):
         # ==========================================
 
         self.conv_list = nn.ModuleList([
-            nn.Conv2d(
+            co.Conv2d(
                 self.in_channels,
                 self.out_channels,
                 kernel_size=(kernel_size, 1),
