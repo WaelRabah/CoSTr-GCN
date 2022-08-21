@@ -51,13 +51,17 @@ class STrGCN(nn.Module):
           if p.dim() > 1:
               nn.init.xavier_uniform_(p)
     def forward(self, x):
+        # print(x.shape)
         x=x.type(torch.float)     
         # print(x.shape)
         #spatial features from SGCN
         x=self.gcn(x,self.adjacency_matrix)
-
+        # print(x.shape)
+        # print(x.shape)
         # temporal features from TGE
         x=self.encoder(x)
+        
+        # print(x.shape)
 
         # Global average pooling
         N,T,V,C=x.shape
@@ -66,7 +70,7 @@ class STrGCN(nn.Module):
         x = F.avg_pool2d(x, kernel_size=(1, V)).view(N,C,T)
         # T pooling
         x = F.avg_pool1d(x, kernel_size=T).view(N,C)
-
+        # print(x)
         # Classifier
         x=self.out(x)
         return x

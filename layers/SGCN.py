@@ -21,7 +21,7 @@ class unit_gcn(nn.Module):
 
         # ==========================================
         # number of nodes
-        self.V = 22
+        self.V = 20
 
         # the adjacency matrixes of the graph
         # self.A = Variable(
@@ -67,7 +67,7 @@ class unit_gcn(nn.Module):
             conv_init(conv)
 
     def forward(self, x, A):
-
+        
         x = x.permute(0, 3, 1, 2)
 
         N, C, T, V = x.size()

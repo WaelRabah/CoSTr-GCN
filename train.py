@@ -110,7 +110,7 @@ def train_model(dataset_name="SHREC17"):
     epsilon=1e-9
     weight_decay=5e-4
     optimizer_params=(lr,betas,epsilon,weight_decay)
-    Max_Epochs = 500
+    Max_Epochs = 50
     Early_Stopping = 50
     dropout_rate=.3
 

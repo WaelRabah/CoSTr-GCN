@@ -230,7 +230,7 @@ class Graph:
 
 
 num_joint = 20
-max_frame = 300
+max_frame = 600
 
 class Feeder_SHREC21(Dataset):
     """
