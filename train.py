@@ -93,25 +93,14 @@ def train_model(dataset_name="SHREC17"):
     # loading data
     batch_size = 32
     workers = 4
-    sequence_len = 8
+    window_size = 10
     # data_cfg = 0
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     torch.autograd.set_detect_anomaly(True)
     torch.cuda.manual_seed(42)
     def init_data_loader():
-        train_dataset, test_dataset, graph= load_data_sets()
-        print("train data num: ", len(train_dataset))
-        print("test data num: ", len(test_dataset))
+        train_loader, val_loader, graph= load_data_sets(window_size=window_size,batch_size=batch_size,workers=workers)
 
-        train_loader = torch.utils.data.DataLoader(
-            train_dataset,
-            batch_size=batch_size, shuffle=True,
-            num_workers=workers, pin_memory=False)
-
-        val_loader = torch.utils.data.DataLoader(
-            test_dataset,
-            batch_size=batch_size, shuffle=False,
-            num_workers=workers, pin_memory=False)
 
         return train_loader, val_loader, val_loader, graph
     # print("Data Config=",data_cfg)

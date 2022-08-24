@@ -65,19 +65,8 @@ def compute_energy(x):
             w+=w_v
     return w
 def init_data_loader():
-    train_dataset, test_dataset, graph= load_data_sets()
-    print("train data num: ", len(train_dataset))
-    print("test data num: ", len(test_dataset))
+    train_loader, val_loader, graph= load_data_sets()
 
-    train_loader = torch.utils.data.DataLoader(
-        train_dataset,
-        batch_size=batch_size, shuffle=True,
-        num_workers=workers, pin_memory=False)
-
-    val_loader = torch.utils.data.DataLoader(
-        test_dataset,
-        batch_size=batch_size, shuffle=False,
-        num_workers=workers, pin_memory=False)
 
     return train_loader, val_loader, graph
 
@@ -155,14 +144,13 @@ if __name__ == "__main__":
 
 
     for i, batch in tqdm(enumerate(train_loader), leave=False):
-        continue
-        # print(i,batch[0].shape)
+        print(i,batch[1])
+        
 
-    print(train_loader.dataset.data[:30])
 
 
     for i, batch in tqdm(enumerate(val_loader), leave=False):
-        continue
+        print(i,batch[1])
         # print(i,batch[0].shape)
 
     # .........inital model
