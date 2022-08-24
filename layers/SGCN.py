@@ -45,12 +45,12 @@ class unit_gcn(nn.Module):
         # ==========================================
 
         self.conv_list = nn.ModuleList([
-            co.Conv2d(
+            nn.Conv2d(
                 self.in_channels,
                 self.out_channels,
                 kernel_size=(kernel_size, 1),
                 padding=(int((kernel_size - 1) / 2), 0),
-                stride=(stride, 1), dtype=torch.float) for i in range(self.num_A)
+                stride=(stride, 1), dtype=torch.double) for i in range(self.num_A)
         ])
 
         if mask_learning:
@@ -58,7 +58,7 @@ class unit_gcn(nn.Module):
         if use_local_bn:
             self.bn = nn.BatchNorm1d(self.out_channels * self.V)
         else:
-            self.bn = nn.BatchNorm2d(self.out_channels, dtype=torch.float)
+            self.bn = nn.BatchNorm2d(self.out_channels, dtype=torch.double)
 
         self.act = nn.Mish()
 
