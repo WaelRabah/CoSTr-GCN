@@ -48,8 +48,9 @@ hparams = {
     "profile_model":False
 }
 num_classes = 18
-input_shape = (10,20,3)
-window_size=10
+window_size=100
+input_shape = (window_size,20,3)
+
 device = torch.device('cuda')
 # def compute_energy(x):
 #     N, T, V, C = x.shape
