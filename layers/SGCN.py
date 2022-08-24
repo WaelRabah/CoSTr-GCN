@@ -21,7 +21,7 @@ class unit_gcn(nn.Module):
 
         # ==========================================
         # number of nodes
-        self.V = 22
+        self.V = 20
 
         # the adjacency matrixes of the graph
         # self.A = Variable(
@@ -45,12 +45,12 @@ class unit_gcn(nn.Module):
         # ==========================================
 
         self.conv_list = nn.ModuleList([
-            co.Conv2d(
+            nn.Conv2d(
                 self.in_channels,
                 self.out_channels,
                 kernel_size=(kernel_size, 1),
                 padding=(int((kernel_size - 1) / 2), 0),
-                stride=(stride, 1), dtype=torch.float) for i in range(self.num_A)
+                stride=(stride, 1), dtype=torch.double) for i in range(self.num_A)
         ])
 
         if mask_learning:
@@ -58,7 +58,7 @@ class unit_gcn(nn.Module):
         if use_local_bn:
             self.bn = nn.BatchNorm1d(self.out_channels * self.V)
         else:
-            self.bn = nn.BatchNorm2d(self.out_channels, dtype=torch.float)
+            self.bn = nn.BatchNorm2d(self.out_channels, dtype=torch.double)
 
         self.act = nn.Mish()
 
@@ -67,7 +67,7 @@ class unit_gcn(nn.Module):
             conv_init(conv)
 
     def forward(self, x, A):
-
+        
         x = x.permute(0, 3, 1, 2)
 
         N, C, T, V = x.size()

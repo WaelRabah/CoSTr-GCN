@@ -10,6 +10,7 @@ from random import shuffle
 import random
 import torch.nn.functional as F
 
+from typing import List, Tuple
 
 
 
@@ -44,222 +45,25 @@ def get_spatial_graph(num_node, self_link, inward, outward):
     return A
 
 
-class Graph():
+class Graph:
+    def __init__(self, inward: List[Tuple[int, int]], num_node: int):
+        self.num_node = num_node
+        self.self_link = [(i, i) for i in range(self.num_node)]
+        self.inward = inward
+        self.outward = [(j, i) for (i, j) in self.inward]
+        self.neighbor = self.inward + self.outward
+        self.A = get_spatial_graph(
+            self.num_node, self.self_link, self.inward, self.outward
+        )
 
-    def __init__(self,
-                 layout='DHG14/28',
-                 strategy='uniform',
-                 max_hop=2,
-                 dilation=1):
-        self.max_hop = max_hop
-        self.dilation = dilation
+    def print(self, image=False):
 
-        self.get_edge(layout)
-        self.hop_dis = self.get_hop_distance(
-            self.num_node, self.edge, max_hop=max_hop)
-        self.get_adjacency(strategy)
+        if image:
+            import matplotlib.pyplot as plt
 
-    def __str__(self):
-        return self.A
-
-    def get_edge(self, layout):
-        if layout == 'DHG14/28':
-            self.num_node = 22
-            self_link = [(i, i) for i in range(self.num_node)]
-            neighbor_link = [(0, 1),
-                             (0, 2),
-                             (1, 0),
-                             (1, 6),
-                             (1, 10),
-                             (1, 14),
-                             (1, 18),
-                             (2, 0),
-                             (2, 3),
-                             (3, 2),
-                             (3, 4),
-                             (4, 3),
-                             (4, 5),
-                             (5, 4),
-                             (6, 1),
-                             (6, 7),
-                             (7, 6),
-                             (7, 8),
-                             (8, 7),
-                             (8, 9),
-                             (9, 8),
-                             (10, 1),
-                             (10, 11),
-                             (11, 10),
-                             (11, 12),
-                             (12, 11),
-                             (12, 13),
-                             (13, 12),
-                             (14, 1),
-                             (14, 15),
-                             (15, 14),
-                             (15, 16),
-                             (16, 15),
-                             (16, 17),
-                             (17, 16),
-                             (18, 1),
-                             (18, 19),
-                             (19, 18),
-                             (19, 20),
-                             (20, 19),
-                             (20, 21),
-                             (21, 20)]
-            self.edge = self_link + neighbor_link
-            self.center = 1
-        elif layout == "SHREC21":
-            self.num_node = 20
-            self_link = [(i, i) for i in range(self.num_node)]
-            neighbor_link = [
-        (0, 1),
-        (1, 2),
-        (2, 3),
-        (0, 4),
-        (4, 5),
-        (5, 6),
-        (6, 7),
-        (0, 8),
-        (8, 9),
-        (9, 10),
-        (10, 11),
-        (0, 12),
-        (12, 13),
-        (13, 14),
-        (14, 15),
-        (0, 16),
-        (16, 17),
-        (17, 18),
-        (18, 19),
-            ]
-            self.edge = self_link + neighbor_link
-            self.center = 0
-        elif layout == "FPHA":
-            self.num_node = 21
-            self_link = [(i, i) for i in range(self.num_node)]
-            neighbor_link = [
-                (0, 1),
-                (0, 2),
-                (0, 3),
-                (0, 4),
-                (0, 5),
-                (1, 0),
-                (1, 6),
-                (2, 0),
-                (2, 7),
-                (3, 0),
-                (3, 8),
-                (4, 0),
-                (4, 9),
-                (5, 0),
-                (5, 10),
-                (6, 1),
-                (6, 11),
-                (7, 2),
-                (7, 12),
-                (8, 3),
-                (8, 13),
-                (9, 4),
-                (9, 14),
-                (10, 5),
-                (10, 15),
-                (11, 6),
-                (11, 16),
-                (12, 7),
-                (12, 17),
-                (13, 8),
-                (13, 18),
-                (14, 9),
-                (14, 19),
-                (15, 10),
-                (15, 20),
-                (16, 11),
-                (17, 12),
-                (18, 13),
-                (19, 14),
-                (20, 15)
-            ]
-            self.edge = self_link + neighbor_link
-            self.center = 0
-        else:
-            raise ValueError("Do Not Exist This Layout.")
-
-    def get_adjacency(self, strategy):
-        valid_hop = range(0, self.max_hop + 1, self.dilation)
-        adjacency = np.zeros((self.num_node, self.num_node))
-        for hop in valid_hop:
-            adjacency[self.hop_dis == hop] = 1
-        normalize_adjacency = self.normalize_digraph(adjacency)
-
-        if strategy == 'uniform':
-            A = np.zeros((1, self.num_node, self.num_node))
-            A[0] = normalize_adjacency
-            self.A = A
-        elif strategy == 'distance':
-            A = np.zeros((len(valid_hop), self.num_node, self.num_node))
-            for i, hop in enumerate(valid_hop):
-                A[i][self.hop_dis == hop] = normalize_adjacency[self.hop_dis == hop]
-            self.A = A
-        elif strategy == 'spatial':
-            A = []
-            for hop in valid_hop:
-                a_root = np.zeros((self.num_node, self.num_node))
-                a_close = np.zeros((self.num_node, self.num_node))
-                a_further = np.zeros((self.num_node, self.num_node))
-                for i in range(self.num_node):
-                    for j in range(self.num_node):
-                        if self.hop_dis[j, i] == hop:
-                            if self.hop_dis[j, self.center] == self.hop_dis[i, self.center]:
-                                a_root[j, i] = normalize_adjacency[j, i]
-                            elif self.hop_dis[j, self.center] > self.hop_dis[i, self.center]:
-                                a_close[j, i] = normalize_adjacency[j, i]
-                            else:
-                                a_further[j, i] = normalize_adjacency[j, i]
-                if hop == 0:
-                    A.append(a_root)
-                else:
-                    A.append(a_root + a_close)
-                    A.append(a_further)
-            A = np.stack(A)
-            self.A = A
-        else:
-            raise ValueError("Do Not Exist This Strategy")
-
-    def get_hop_distance(self, num_node, edge, max_hop=1):
-        A = np.zeros((num_node, num_node))
-        for i, j in edge:
-            A[j, i] = 1
-            A[i, j] = 1
-
-        hop_dis = np.zeros((num_node, num_node)) + np.inf
-        transfer_mat = [np.linalg.matrix_power(
-            A, d) for d in range(max_hop + 1)]
-        arrive_mat = (np.stack(transfer_mat) > 0)
-        for d in range(max_hop, -1, -1):
-            hop_dis[arrive_mat[d]] = d
-        return hop_dis
-
-    def normalize_digraph(self, A):
-        Dl = np.sum(A, 0)
-        num_node = A.shape[0]
-        Dn = np.zeros((num_node, num_node))
-        for i in range(num_node):
-            if Dl[i] > 0:
-                Dn[i, i] = Dl[i]**(-1)
-        AD = np.dot(A, Dn)
-        return AD
-
-    def normalize_undigraph(self, A):
-        Dl = np.sum(A, 0)
-        num_node = A.shape[0]
-        Dn = np.zeros((num_node, num_node))
-        for i in range(num_node):
-            if Dl[i] > 0:
-                Dn[i, i] = Dl[i]**(-0.5)
-        DAD = np.dot(np.dot(Dn, A), Dn)
-        return DAD
+            for i in self.A:
+                plt.imshow(i, cmap="gray")
+                plt.show()
 
 
 num_joint = 20
@@ -279,33 +83,15 @@ class Feeder_SHREC21(Dataset):
     ):
         self.data_path = data_path
         self.set_name = set_name
-        self.classes=["",
-                    "RIGHT",
-                    "KNOB",
-                    "CROSS",
-                    "THREE",
-                    "V",
-                    "ONE",
-                    "FOUR",
-                    "GRAB",
-                    "DENY",
-                    "MENU",
-                    "CIRCLE",
-                    "TAP",
-                    "PINCH",
-                    "LEFT",
-                    "TWO",
-                    "OK",
-                    "EXPAND",
-                    ]
+
         self.load_data()
 
 
     def load_data(self):
         self.dataset = []
         # load file list
-        # classes = set([''])
-        # self.classes = []
+        classes = set([''])
+        self.classes = []
         with open(
                 f'{self.data_path}/{self.set_name}_set/annotations_revised.txt' if self.set_name == "test" else f'{self.data_path}/{self.set_name}_set/annotations_revised_{self.set_name}.txt',
                 mode="r") as f:
@@ -322,10 +108,10 @@ class Feeder_SHREC21(Dataset):
                     gesture_start = gesture_info[1]
                     gesture_end = gesture_info[2]
                     gesture_infos.append((gesture_start, gesture_end, gesture_label))
-                    # classes.add(gesture_label)
+                    classes.add(gesture_label)
                 self.dataset.append((seq_idx, gesture_infos))
 
-        # self.classes = list(classes)
+        self.classes = list(classes)
         # with open('datasets/shrec21/classes.yaml', mode="w") as f:
         #     yaml.dump(self.classes, f, explicit_start=True, default_flow_style=False)
 
@@ -389,30 +175,15 @@ class Feeder_SHREC21(Dataset):
                 idx, (f, label) in enumerate(labeled_sequence)]
 
         frames = [f for f, l in labeled_sequence]
-        # print(len(self.classes))
+
         labels_per_frame = [self.classes.index(l) for f, l in labeled_sequence]
-        gestures=[]
-        for gesture_start, gesture_end, gesture_label in gesture_infos: 
-            gesture_start=int(gesture_start)
-            gesture_end=int(gesture_end)
-            g_frames=frames[gesture_start:gesture_end]
-            g_label=labels_per_frame[gesture_start:gesture_end]
-            gestures.append((g_frames,g_label))
-        return  gestures
+        return labeled_sequence, np.array(frames), labels_per_frame
 
-def get_window_label(label,num_classes=18):
-
-    W=len(label)
-    sum=torch.zeros((num_classes))
-    for t in range(W):
-        sum[ label[t]] += 1
-    return  sum.argmax(dim=-1).item()
 
 def gendata(
         data_path,
         set_name,
-        max_frame,
-        window_size=20
+        max_frame
 ):
     feeder = Feeder_SHREC21(
         data_path=data_path,
@@ -420,25 +191,20 @@ def gendata(
     )
     dataset = feeder.dataset
 
-
-    data = []
+    fp = np.zeros(
+        (len(dataset), max_frame, num_joint, 3), dtype=np.float32
+    )
+    total_labels = []
     for i, s in enumerate(tqdm(dataset)):
-        data_el = feeder[i]
-        l=len(data_el)
-        # for w in range(num_windows):
-        for idx,gesture in enumerate(data_el) :
-            current_skeletons_window = np.array(gesture[0])
-            label = gesture[1]
-            
-            label = get_window_label(label)
-            data.append((current_skeletons_window,label)) 
+        labeled_seq, data, labels = feeder[i]
+        fp[i, :, :, :] = data[:max_frame,:,:]
+        total_labels.append(labels[:max_frame])
 
     # with open(label_out_path, "wb") as f:
     #     pickle.dump((set_name, list(total_labels)), f)
 
     # np.save(data_out_path, fp)
-
-    return data
+    return fp, list(total_labels)
 
 class GraphDataset(Dataset):
     def __init__(
@@ -481,104 +247,28 @@ class GraphDataset(Dataset):
         self.useTranslationAug = useTranslationAug
         self.mmap_mode = mmap_mode
         self.load_data()
-        data=[]
-
-        for idx,data_el in enumerate(self.data):
-            if data_el[0].shape[0]>0 :   
-                data.append(data_el)
-                
-        self.data=data
-
         if self.use_data_aug:
             print("Augmenting data ....")
             augmented_data = []
+            aug_labels=[]
             for idx,data_el in enumerate(self.data):
                 augmented_skeletons = self.data_aug(self.preprocessSkeleton(
-                    torch.from_numpy(np.array(data_el[0])).float()))
+                    torch.from_numpy(np.array(data_el)).float()))
                 for s in augmented_skeletons:
-                    augmented_data.append((s,data_el[1]))
+                    augmented_data.append(s)
+                    aug_labels.append(self.label[idx])
             self.data = augmented_data
-
+            self.label=aug_labels
         # if normalization:
         #     self.get_mean_map()
 
     def load_data(self):
         # Data: N C V T M
-        self.data= gendata(
+        self.data, self.label= gendata(
                 self.data_path,
                 self.set_name,
-                max_frame,
                 self.window_size
         )        
-    def __len__(self):
-        return len(self.data)
-
-    def __iter__(self):
-        return self
-    def preprocessSkeleton(self, skeleton):
-        def translationInvariance(skeleton):
-            # normalize by palm center value at frame=1
-            skeleton -= torch.clone(skeleton[0][1])
-            skeleton = skeleton.float()
-            return skeleton
-
-        def scaleInvariance(skeleton):
-
-            x_c = torch.clone(skeleton)
-
-            distance = torch.sqrt(torch.sum((x_c[0, 1]-x_c[0, 0])**2, dim=-1))
-
-            factor = 1/distance
-
-            x_c *= factor
-
-            return x_c
-
-        def normalize(skeleton):
-
-            # if self.transform:
-            #     skeleton = self.transform(skeleton.numpy())
-            skeleton = F.normalize(skeleton)
-
-            return skeleton
-        if self.normalize:
-            skeleton = normalize(skeleton)
-        if self.scaleInvariance:
-            skeleton = scaleInvariance(skeleton)
-        if self.translationInvariance:
-            skeleton = translationInvariance(skeleton)
-
-        return skeleton
-    def __getitem__(self, index):
-        
-        data_numpy,label = self.data[index]
-        # label = self.labels[index]
-
-        skeleton = np.array(data_numpy)
-        
-        # if self.data_aug :
-        #     pass
-
-        data_num = skeleton.shape[0]
-        if self.isPadding:
-            # padding
-            skeleton = self.auto_padding(skeleton, self.max_seq_size)
-            # label
-
-
-            return skeleton, label, index
-
-        if data_num >= self.window_size:
-            idx_list = self.sample_frames(data_num)
-            skeleton = [skeleton[idx] for idx in idx_list]
-            skeleton = np.array(skeleton)
-            skeleton = torch.from_numpy(skeleton)
-        else:
-            skeleton = self.upsample(skeleton, self.window_size)
-
-        # print(label)
-        return skeleton, label, index
-
     def data_aug(self, skeleton):
 
         def scale(skeleton):
@@ -762,7 +452,7 @@ class GraphDataset(Dataset):
     def upsample(self, skeleton, max_frames):
         tensor = torch.unsqueeze(torch.unsqueeze(
             torch.from_numpy(skeleton), dim=0), dim=0)
-        
+
         out = nn.functional.interpolate(
             tensor, size=[max_frames, tensor.shape[-2], tensor.shape[-1]], mode='trilinear')
         tensor = torch.squeeze(torch.squeeze(out, dim=0), dim=0)
@@ -800,10 +490,81 @@ class GraphDataset(Dataset):
             .reshape((C, 1, V, 1))
         )
 
-def load_data_sets(window_size=20):
-    
-    train_ds=GraphDataset("./data/SHREC21","training",window_size=window_size,
-                                use_data_aug=False,
+    def __len__(self):
+        return len(self.label)
+
+    def __iter__(self):
+        return self
+    def preprocessSkeleton(self, skeleton):
+        def translationInvariance(skeleton):
+            # normalize by palm center value at frame=1
+            skeleton -= torch.clone(skeleton[0][1])
+            skeleton = skeleton.float()
+            return skeleton
+
+        def scaleInvariance(skeleton):
+
+            x_c = torch.clone(skeleton)
+
+            distance = torch.sqrt(torch.sum((x_c[0, 1]-x_c[0, 0])**2, dim=-1))
+
+            factor = 1/distance
+
+            x_c *= factor
+
+            return x_c
+
+        def normalize(skeleton):
+
+            # if self.transform:
+            #     skeleton = self.transform(skeleton.numpy())
+            skeleton = F.normalize(skeleton)
+
+            return skeleton
+        if self.normalize:
+            skeleton = normalize(skeleton)
+        if self.scaleInvariance:
+            skeleton = scaleInvariance(skeleton)
+        if self.translationInvariance:
+            skeleton = translationInvariance(skeleton)
+
+        return skeleton
+    def __getitem__(self, index):
+        
+        data_numpy = self.data[index]
+        label = self.label[index]
+
+        skeleton = np.array(data_numpy)
+        
+        # if self.data_aug :
+        #     pass
+
+        data_num = skeleton.shape[0]
+        if self.isPadding:
+            # padding
+            skeleton = self.auto_padding(skeleton, self.max_seq_size)
+            # label
+
+
+            return skeleton, label, index
+
+        if data_num >= self.window_size:
+            idx_list = self.sample_frames(data_num)
+            skeleton = [skeleton[idx] for idx in idx_list]
+            skeleton = np.array(skeleton)
+            skeleton = torch.from_numpy(skeleton)
+        else:
+            skeleton = self.upsample(skeleton, self.window_size)
+
+
+        return skeleton, label, index
+
+
+
+def load_data_sets():
+
+    train_ds=GraphDataset("./data/SHREC21","training",window_size=max_frame,
+                                use_data_aug=True,
                                 normalize=False, 
                                 scaleInvariance=False,
                                 translationInvariance=False, 
@@ -815,8 +576,34 @@ def load_data_sets(window_size=20):
                                 useNoise=True,
                                 useScaleAug=False,
                                 useTranslationAug=False)
-    test_ds=GraphDataset("./data/SHREC21","test",window_size=window_size, use_data_aug=False,
+    test_ds=GraphDataset("./data/SHREC21","test",window_size=max_frame, use_data_aug=False,
                                 normalize=False, scaleInvariance=False, translationInvariance=False, isPadding=False)
-    graph = Graph(layout="SHREC21",strategy="distance")
+    INWARD = [
+        (0, 1),
+        (1, 2),
+        (2, 3),
+        (0, 4),
+        (4, 5),
+        (5, 6),
+        (6, 7),
+        (0, 8),
+        (8, 9),
+        (9, 10),
+        (10, 11),
+        (0, 12),
+        (12, 13),
+        (13, 14),
+        (14, 15),
+        (0, 16),
+        (16, 17),
+        (17, 18),
+        (18, 19),
+
+
+    ]
+
+    NUM_NODES = 20
+
+    graph = Graph(inward=INWARD, num_node=NUM_NODES)
     
     return train_ds, test_ds, torch.from_numpy(graph.A)

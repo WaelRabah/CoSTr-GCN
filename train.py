@@ -10,7 +10,8 @@ from model import STrGCN
 import os
 import matplotlib.pyplot as plt
 import collections
-from data_loaders.data_loader import init_data_loader
+# from data_loaders.data_loader import init_data_loader
+from data_loaders.shrec21_loader import load_data_sets
 import pytorch_lightning as pl
 
 class History_dict(LightningLoggerBase):
@@ -82,9 +83,9 @@ def plot_history(history, title: str) -> None:
     plt.show()
 
     
-def init_model( d_model,n_heads, adjacency_matrix,optimizer_params,num_classes,seq_len,dropout_rate=.1):
+def init_model(graph, optimizer_params,num_classes,dropout_rate=.1):
+    model = STrGCN(graph, optimizer_params, d_model=128,n_heads=8,num_classes=num_classes, dropout=dropout_rate)
     
-    model = STrGCN(adjacency_matrix,optimizer_params,d_model=d_model,n_heads=n_heads,num_classes=num_classes, seq_len=seq_len, dropout=dropout_rate)
 
     return model
 
@@ -93,16 +94,49 @@ def train_model(dataset_name="SHREC17"):
     batch_size = 32
     workers = 4
     sequence_len = 8
-    data_cfg = 0
+    # data_cfg = 0
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     torch.autograd.set_detect_anomaly(True)
     torch.cuda.manual_seed(42)
+    def init_data_loader():
+        train_dataset, test_dataset, graph= load_data_sets()
+        print("train data num: ", len(train_dataset))
+        print("test data num: ", len(test_dataset))
 
-    print("Data Config=",data_cfg)
-    train_loader, test_loader, val_loader, adjacency_matrix, labels = init_data_loader(
-        dataset_name,data_cfg, sequence_len, batch_size, workers, device)
+        train_loader = torch.utils.data.DataLoader(
+            train_dataset,
+            batch_size=batch_size, shuffle=True,
+            num_workers=workers, pin_memory=False)
 
+        val_loader = torch.utils.data.DataLoader(
+            test_dataset,
+            batch_size=batch_size, shuffle=False,
+            num_workers=workers, pin_memory=False)
 
+        return train_loader, val_loader, val_loader, graph
+    # print("Data Config=",data_cfg)
+    train_loader, test_loader, val_loader, adjacency_matrix = init_data_loader()
+
+    labels = [
+        "",
+        "RIGHT",
+        "KNOB",
+        "CROSS",
+        "THREE",
+        "V",
+        "ONE",
+        "FOUR",
+        "GRAB",
+        "DENY",
+        "MENU",
+        "CIRCLE",
+        "TAP",
+        "PINCH",
+        "LEFT",
+        "TWO",
+        "OK",
+        "EXPAND",
+    ]
     d_model=128
     n_heads=8
     lr = 1e-3
@@ -110,21 +144,17 @@ def train_model(dataset_name="SHREC17"):
     epsilon=1e-9
     weight_decay=5e-4
     optimizer_params=(lr,betas,epsilon,weight_decay)
-    Max_Epochs = 500
+    Max_Epochs = 50
     Early_Stopping = 50
     dropout_rate=.3
-
-    if data_cfg == 0:
-        num_classes = 14
-    elif data_cfg == 1:
-        num_classes = 28
+    num_classes=18
 
 
     time_now=datetime.today().strftime('%Y-%m-%d_%H_%M_%S')
     #folder for saving trained model...
     #change this path to the fold where you want to save your pre-trained model
-    model_fold = "./STRGCN-{}_dc-{}_{}/".format(
-        dataset_name, data_cfg,time_now)
+    model_fold = "./models/STRGCN-{}_{}/".format(
+        dataset_name,time_now)
     try:
         os.mkdir(model_fold)
     except:
@@ -133,21 +163,21 @@ def train_model(dataset_name="SHREC17"):
     #.........inital model
     print("\ninit model.............")
     confusion_matrix = torch.zeros(num_classes, num_classes,device=device)
-    model = init_model(d_model, n_heads, adjacency_matrix, optimizer_params, num_classes, sequence_len,dropout_rate)
+    model = init_model(adjacency_matrix, optimizer_params, num_classes)
     print(f"d_model (the number of expected features in the encoder inputs/outputs):{d_model}")
     print(f"Number of heads :{n_heads}")
     print(f"dropout rate :{dropout_rate}")
     print(f"Learning rate {lr}")
     best_model=f"best_model-{d_model}-{n_heads}"
     checkpoint_callback = ModelCheckpoint(
-        monitor="val_accuracy",
+        monitor="val_F1_score",
         dirpath=model_fold,
         filename=best_model,
         save_top_k=3,
         mode="max",
     )
     early_stop_callback = EarlyStopping(
-        monitor="val_accuracy", min_delta=0.00000001, patience=Early_Stopping, verbose=True, mode="max",check_on_train_epoch_end=True)
+        monitor="val_F1_score", min_delta=0.00000001, patience=Early_Stopping, verbose=True, mode="max",check_on_train_epoch_end=True)
     logger = TensorBoardLogger("tb_logs", name=f"STrGCN_Model")
     history=History_dict()
     trainer = pl.Trainer(gpus=1, precision=16, log_every_n_steps=20,
@@ -164,4 +194,7 @@ def train_model(dataset_name="SHREC17"):
 
     print(test_metrics)
 
-                            
+
+
+if __name__ == "__main__":
+    train_model()
