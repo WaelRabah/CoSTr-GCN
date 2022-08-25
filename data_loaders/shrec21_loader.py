@@ -2,22 +2,13 @@ import torch
 import numpy as np
 from torch.utils.data import Dataset
 from tqdm import tqdm
-from torch.utils.data import Dataset
-import torch.nn as nn
-import torch
-import numpy as np
 from random import shuffle
 import random
 import torch.nn.functional as F
 
 
-
-
-import random
-
-
-
-
+torch.manual_seed(42)
+torch.cuda.manual_seed(42)
 def edge2mat(link, num_node):
     A = np.zeros((num_node, num_node))
     for i, j in link:
@@ -275,7 +266,8 @@ class Feeder_SHREC21(Dataset):
     def __init__(
             self,
             data_path="SHREC21",
-            set_name="training"
+            set_name="training",
+            window_size=10
     ):
         self.data_path = data_path
         self.set_name = set_name
@@ -298,6 +290,7 @@ class Feeder_SHREC21(Dataset):
                     "OK",
                     "EXPAND",
                     ]
+        self.window_size=window_size
         self.load_data()
 
 
@@ -392,13 +385,45 @@ class Feeder_SHREC21(Dataset):
         # print(len(self.classes))
         labels_per_frame = [self.classes.index(l) for f, l in labeled_sequence]
         gestures=[]
+        
         for gesture_start, gesture_end, gesture_label in gesture_infos: 
             gesture_start=int(gesture_start)
             gesture_end=int(gesture_end)
             g_frames=frames[gesture_start:gesture_end]
             g_label=labels_per_frame[gesture_start:gesture_end]
             gestures.append((g_frames,g_label))
-        return  gestures
+            num_windows=len(g_frames) // self.window_size
+            for w in range(num_windows-1) :
+                window_frames=g_frames[w*self.window_size:(w+1)*self.window_size]
+                gestures.append((window_frames,g_label))
+                
+        
+        ng_sequences=[]
+        ng_seq=[]
+        l=len(frames)
+        indices_ng=[]
+        for i in range(len(frames)-1):
+            f_curr=frames[i]
+            f_next=frames[i+1]
+            l_curr=labels_per_frame[i]
+            l_next=labels_per_frame[i+1]
+
+            if l_curr==0 and l_next==0 :
+                indices_ng.append(i)
+                ng_seq.append(f_curr)
+                if i==l-2:
+                    ng_seq.append(f_next)
+                    ng_sequences.append((ng_seq,0))
+                    ng_seq=[]
+                    continue
+            elif l_curr==0 and l_next!=0 :
+                indices_ng.append(i)
+                ng_seq.append(f_curr)
+                ng_sequences.append((ng_seq,0))
+                ng_seq=[]
+                continue
+        
+        return  gestures, ng_sequences
 
 def get_window_label(label,num_classes=18):
 
@@ -417,13 +442,15 @@ def gendata(
     feeder = Feeder_SHREC21(
         data_path=data_path,
         set_name=set_name,
+        window_size=window_size
     )
     dataset = feeder.dataset
 
-
     data = []
+    ng_sequences_data=[]
     for i, s in enumerate(tqdm(dataset)):
-        data_el = feeder[i]
+        data_el,ng_sequences = feeder[i]
+        ng_sequences_data=[*ng_sequences_data,*ng_sequences]
         l=len(data_el)
         # for w in range(num_windows):
         for idx,gesture in enumerate(data_el) :
@@ -432,13 +459,23 @@ def gendata(
             
             label = get_window_label(label)
             data.append((current_skeletons_window,label)) 
+    
+    data_classes_count={}
+    
+    for seq,label in data:
+        if label in data_classes_count:
+            data_classes_count[label]+=1
+        else :
+            data_classes_count[label]=1
+    data_classes_count[0]=len(ng_sequences_data)
 
+        
     # with open(label_out_path, "wb") as f:
     #     pickle.dump((set_name, list(total_labels)), f)
 
     # np.save(data_out_path, fp)
 
-    return data
+    return data, data_classes_count, ng_sequences_data
 
 class GraphDataset(Dataset):
     def __init__(
@@ -459,6 +496,7 @@ class GraphDataset(Dataset):
         useScaleAug=False,
         useTranslationAug=False,
         mmap_mode="r",
+        number_of_samples_per_class=0
     ):
         """Initialise a Graph dataset
         """
@@ -480,11 +518,32 @@ class GraphDataset(Dataset):
         self.useScaleAug = useScaleAug
         self.useTranslationAug = useTranslationAug
         self.mmap_mode = mmap_mode
+        self.number_of_samples_per_class=number_of_samples_per_class
+        self.classes=["No gesture",
+                        "RIGHT",
+                        "KNOB",
+                        "CROSS",
+                        "THREE",
+                        "V",
+                        "ONE",
+                        "FOUR",
+                        "GRAB",
+                        "DENY",
+                        "MENU",
+                        "CIRCLE",
+                        "TAP",
+                        "PINCH",
+                        "LEFT",
+                        "TWO",
+                        "OK",
+                        "EXPAND",
+                        ]
         self.load_data()
+        self.sample_classes()
         data=[]
-
+        
         for idx,data_el in enumerate(self.data):
-            if data_el[0].shape[0]>0 :   
+            if np.array(data_el[0]).shape[0]>0 :   
                 data.append(data_el)
                 
         self.data=data
@@ -504,14 +563,36 @@ class GraphDataset(Dataset):
 
     def load_data(self):
         # Data: N C V T M
-        self.data= gendata(
+        self.data, data_classes_count, self.ng_sequences_data= gendata(
                 self.data_path,
                 self.set_name,
                 max_frame,
                 self.window_size
-        )        
+        )
+        print("Number of gestures per class in the "+self.set_name+" set :")
+        for class_label in data_classes_count.keys():
+            print("Class",self.classes[class_label],"has",data_classes_count[class_label], "samples")
+    def sample_classes(self):
+        # Data: N C V T M
+        data_dict={ i:[] for i in range(len(self.classes))}
+        data=[]
+        for seq,label in self.data:
+            data_dict[label].append((seq,label))
+        shuffle(self.ng_sequences_data)
+        
+        data_dict[0]=self.ng_sequences_data
+        
+        for k in data_dict.keys():
+            samples=data_dict[k][:self.number_of_samples_per_class]
+            
+            data=[*data,*samples]
+        self.data=data
+        
+        
     def __len__(self):
         return len(self.data)
+        
+        
 
     def __iter__(self):
         return self
@@ -763,7 +844,7 @@ class GraphDataset(Dataset):
         tensor = torch.unsqueeze(torch.unsqueeze(
             torch.from_numpy(skeleton), dim=0), dim=0)
         
-        out = nn.functional.interpolate(
+        out = F.interpolate(
             tensor, size=[max_frames, tensor.shape[-2], tensor.shape[-1]], mode='trilinear')
         tensor = torch.squeeze(torch.squeeze(out, dim=0), dim=0)
 
@@ -800,7 +881,7 @@ class GraphDataset(Dataset):
             .reshape((C, 1, V, 1))
         )
 
-def load_data_sets(window_size=20):
+def load_data_sets(window_size=20, batch_size=32,workers=4):
     
     train_ds=GraphDataset("./data/SHREC21","training",window_size=window_size,
                                 use_data_aug=False,
@@ -814,9 +895,23 @@ def load_data_sets(window_size=20):
                                 useTimeInterpolation=False,
                                 useNoise=True,
                                 useScaleAug=False,
-                                useTranslationAug=False)
+                                useTranslationAug=False,
+                                number_of_samples_per_class=23
+                         )
     test_ds=GraphDataset("./data/SHREC21","test",window_size=window_size, use_data_aug=False,
-                                normalize=False, scaleInvariance=False, translationInvariance=False, isPadding=False)
+                                normalize=False, scaleInvariance=False, translationInvariance=False, isPadding=False, number_of_samples_per_class=14)
     graph = Graph(layout="SHREC21",strategy="distance")
+    print("train data num: ", len(train_ds))
+    print("test data num: ", len(test_ds))
+
+    train_loader = torch.utils.data.DataLoader(
+        train_ds,
+        batch_size=batch_size, shuffle=True,
+        num_workers=workers, pin_memory=False)
+
+    val_loader = torch.utils.data.DataLoader(
+        test_ds,
+        batch_size=batch_size, shuffle=True,
+        num_workers=workers, pin_memory=False)
     
-    return train_ds, test_ds, torch.from_numpy(graph.A)
+    return train_loader, val_loader, torch.from_numpy(graph.A)
