@@ -159,14 +159,14 @@ def train_model(dataset_name="SHREC17"):
     print(f"Learning rate {lr}")
     best_model=f"best_model-{d_model}-{n_heads}"
     checkpoint_callback = ModelCheckpoint(
-        monitor="val_F1_score",
+        monitor="val_accuracy",
         dirpath=model_fold,
         filename=best_model,
         save_top_k=3,
         mode="max",
     )
     early_stop_callback = EarlyStopping(
-        monitor="val_F1_score", min_delta=0.00000001, patience=Early_Stopping, verbose=True, mode="max",check_on_train_epoch_end=True)
+        monitor="val_accuracy", min_delta=0.00000001, patience=Early_Stopping, verbose=True, mode="max",check_on_train_epoch_end=True)
     logger = TensorBoardLogger("tb_logs", name=f"STrGCN_Model")
     history=History_dict()
     trainer = pl.Trainer(gpus=1, precision=16, log_every_n_steps=20,

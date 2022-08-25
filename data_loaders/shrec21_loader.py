@@ -2,10 +2,6 @@ import torch
 import numpy as np
 from torch.utils.data import Dataset
 from tqdm import tqdm
-from torch.utils.data import Dataset
-import torch.nn as nn
-import torch
-import numpy as np
 from random import shuffle
 import random
 import torch.nn.functional as F
@@ -13,7 +9,6 @@ import torch.nn.functional as F
 
 torch.manual_seed(42)
 torch.cuda.manual_seed(42)
-
 def edge2mat(link, num_node):
     A = np.zeros((num_node, num_node))
     for i, j in link:
@@ -271,7 +266,8 @@ class Feeder_SHREC21(Dataset):
     def __init__(
             self,
             data_path="SHREC21",
-            set_name="training"
+            set_name="training",
+            window_size=10
     ):
         self.data_path = data_path
         self.set_name = set_name
@@ -294,6 +290,7 @@ class Feeder_SHREC21(Dataset):
                     "OK",
                     "EXPAND",
                     ]
+        self.window_size=window_size
         self.load_data()
 
 
@@ -388,12 +385,18 @@ class Feeder_SHREC21(Dataset):
         # print(len(self.classes))
         labels_per_frame = [self.classes.index(l) for f, l in labeled_sequence]
         gestures=[]
+        
         for gesture_start, gesture_end, gesture_label in gesture_infos: 
             gesture_start=int(gesture_start)
             gesture_end=int(gesture_end)
             g_frames=frames[gesture_start:gesture_end]
             g_label=labels_per_frame[gesture_start:gesture_end]
             gestures.append((g_frames,g_label))
+            num_windows=len(g_frames) // self.window_size
+            for w in range(num_windows-1) :
+                window_frames=g_frames[w*self.window_size:(w+1)*self.window_size]
+                gestures.append((window_frames,g_label))
+                
         
         ng_sequences=[]
         ng_seq=[]
@@ -439,6 +442,7 @@ def gendata(
     feeder = Feeder_SHREC21(
         data_path=data_path,
         set_name=set_name,
+        window_size=window_size
     )
     dataset = feeder.dataset
 
@@ -840,7 +844,7 @@ class GraphDataset(Dataset):
         tensor = torch.unsqueeze(torch.unsqueeze(
             torch.from_numpy(skeleton), dim=0), dim=0)
         
-        out = nn.functional.interpolate(
+        out = F.interpolate(
             tensor, size=[max_frames, tensor.shape[-2], tensor.shape[-1]], mode='trilinear')
         tensor = torch.squeeze(torch.squeeze(out, dim=0), dim=0)
 

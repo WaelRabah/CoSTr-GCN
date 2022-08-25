@@ -62,9 +62,9 @@ def _scaled_dot_product_attention_default_state(
     V=num_nodes
     N = sequence_len
     Nq = sequence_len - query_index - 1 if query_index >= 0 else -query_index - 1
-    Q_mem = init_fn((B, V, Nq, embed_dim_k)).cuda()
-    K_T_mem = init_fn((B, V, embed_dim_k, N)).cuda()
-    V_mem = init_fn((B, V, N, embed_dim_v)).cuda()
+    Q_mem = init_fn((B, V, Nq, embed_dim_k))
+    K_T_mem = init_fn((B, V, embed_dim_k, N))
+    V_mem = init_fn((B, V, N, embed_dim_v))
     return (Q_mem, K_T_mem, V_mem)
 
 def _clone_state(state):
