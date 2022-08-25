@@ -25,7 +25,7 @@ class STrGCN(pl.LightningModule):
         
         self.Learning_Rate, self.betas, self.epsilon, self.weight_decay=optimizer_params
         self.num_classes=num_classes
-        self.adjacency_matrix=adjacency_matrix.double()
+        self.adjacency_matrix=adjacency_matrix.float()
         self.train_acc = torchmetrics.Accuracy()
         self.valid_acc = torchmetrics.Accuracy()
         self.test_acc = torchmetrics.Accuracy()
@@ -41,11 +41,11 @@ class STrGCN(pl.LightningModule):
         self.encoder=TransformerGraphEncoder(dropout=dropout,num_heads=n_heads,dim_model=d_model, num_layers=nEncoderlayers)
 
         self.out = nn.Sequential(
-            nn.Linear(d_model, d_model,dtype=torch.double),
+            nn.Linear(d_model, d_model,dtype=torch.float),
             nn.Mish(),
             # nn.Dropout(dropout),
-            nn.LayerNorm(d_model,dtype=torch.double),
-            nn.Linear(d_model,num_classes,dtype=torch.double)
+            nn.LayerNorm(d_model,dtype=torch.float),
+            nn.Linear(d_model,num_classes,dtype=torch.float)
           )
 
         self.d_model = d_model
@@ -87,7 +87,7 @@ class STrGCN(pl.LightningModule):
         return torch.sum(torch.nan_to_num(FPR),dim=-1)
     def forward(self, x):
         # print(x.shape)
-        x=x.type(torch.double)     
+        x=x.type(torch.float)     
         
         # print(x.shape)
         #spatial features from SGCN
@@ -119,7 +119,7 @@ class STrGCN(pl.LightningModule):
     
     def training_step(self, batch, batch_nb):
         # REQUIRED
-        x = batch[0].double()
+        x = batch[0].float()
         y = batch[1]
         y = y.type(torch.LongTensor)
         y = y.cuda()
@@ -147,7 +147,7 @@ class STrGCN(pl.LightningModule):
     def validation_step(self, batch, batch_nb):
         # OPTIONAL
         
-        x = batch[0].double()
+        x = batch[0].float()
         y = batch[1]
         y = y.type(torch.LongTensor)
         y = y.cuda()
@@ -177,7 +177,7 @@ class STrGCN(pl.LightningModule):
     def test_step(self, batch, batch_nb):
         global confusion_matrix
         # OPTIONAL
-        x = batch[0].double()
+        x = batch[0].float()
         y = batch[1]
         y = y.type(torch.LongTensor)
         y = y.cuda()
