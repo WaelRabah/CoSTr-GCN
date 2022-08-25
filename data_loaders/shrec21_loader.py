@@ -267,7 +267,8 @@ class Feeder_SHREC21(Dataset):
             self,
             data_path="SHREC21",
             set_name="training",
-            window_size=10
+            window_size=10,
+            aug_by_sw=False
     ):
         self.data_path = data_path
         self.set_name = set_name
@@ -290,7 +291,9 @@ class Feeder_SHREC21(Dataset):
                     "OK",
                     "EXPAND",
                     ]
+        self.class_to_idx={ class_l:idx for idx, class_l in enumerate(self.classes)}
         self.window_size=window_size
+        self.aug_by_sw=aug_by_sw
         self.load_data()
 
 
@@ -366,7 +369,23 @@ class Feeder_SHREC21(Dataset):
 
                     video.append(positions)
             return np.array(video)
+        def sample_window(data_num,stride):
+            # sample #window_size frames from whole video
 
+            sample_size = self.window_size
+
+            idx_list = [0, data_num - 1]
+            for i in range(sample_size):
+                if index not in idx_list and index < data_num:
+                    idx_list.append(index)
+            idx_list.sort()
+
+            while len(idx_list) < sample_size:
+                idx = random.randint(0, data_num - 1)
+                if idx not in idx_list:
+                    idx_list.append(idx)
+            idx_list.sort()
+            return idx_list
         # output shape (C, T, V, M)
         # get data
         seq_idx, gesture_infos = self.dataset[index]
@@ -383,21 +402,28 @@ class Feeder_SHREC21(Dataset):
 
         frames = [f for f, l in labeled_sequence]
         # print(len(self.classes))
-        labels_per_frame = [self.classes.index(l) for f, l in labeled_sequence]
+        labels_per_frame = [self.class_to_idx[l] for f, l in labeled_sequence]
         gestures=[]
-        
+        windows_sub_sequences_per_gesture={ i:[] for i in range(len(self.classes))}
+
         for gesture_start, gesture_end, gesture_label in gesture_infos: 
             gesture_start=int(gesture_start)
             gesture_end=int(gesture_end)
             g_frames=frames[gesture_start:gesture_end]
             g_label=labels_per_frame[gesture_start:gesture_end]
             gestures.append((g_frames,g_label))
-            num_windows=len(g_frames) // self.window_size
-            for w in range(num_windows-1) :
-                window_frames=g_frames[w*self.window_size:(w+1)*self.window_size]
-                gestures.append((window_frames,g_label))
+            label=self.class_to_idx[gesture_label]
+            if self.aug_by_sw :
+                num_windows=len(g_frames) // self.window_size
                 
-        
+                for stride in range(1,self.window_size) :
+                    l=len(g_frames)
+                    if l // stride >= self.window_size :
+                        window_indices=sample_window(l,stride)
+                        window=[ g_frames[idx] for idx in window_indices]
+                        windows_sub_sequences_per_gesture[label].append((window,label))
+                
+
         ng_sequences=[]
         ng_seq=[]
         l=len(frames)
@@ -423,7 +449,7 @@ class Feeder_SHREC21(Dataset):
                 ng_seq=[]
                 continue
         
-        return  gestures, ng_sequences
+        return  gestures, ng_sequences, windows_sub_sequences_per_gesture
 
 def get_window_label(label,num_classes=18):
 
@@ -437,27 +463,30 @@ def gendata(
         data_path,
         set_name,
         max_frame,
-        window_size=20
+        window_size=20,
+        aug_by_sw=False
 ):
     feeder = Feeder_SHREC21(
         data_path=data_path,
         set_name=set_name,
-        window_size=window_size
+        window_size=window_size,
+        aug_by_sw=aug_by_sw
     )
     dataset = feeder.dataset
 
     data = []
     ng_sequences_data=[]
+    windows_sub_sequences_data={ i:[] for i in range(len(feeder.classes))}
     for i, s in enumerate(tqdm(dataset)):
-        data_el,ng_sequences = feeder[i]
+        data_el,ng_sequences, windows_sub_sequences_per_gesture = feeder[i]
         ng_sequences_data=[*ng_sequences_data,*ng_sequences]
         l=len(data_el)
         # for w in range(num_windows):
         for idx,gesture in enumerate(data_el) :
             current_skeletons_window = np.array(gesture[0])
             label = gesture[1]
-            
             label = get_window_label(label)
+            windows_sub_sequences_data[label]=[*windows_sub_sequences_data[label],*windows_sub_sequences_per_gesture[label]]
             data.append((current_skeletons_window,label)) 
     
     data_classes_count={}
@@ -475,7 +504,7 @@ def gendata(
 
     # np.save(data_out_path, fp)
 
-    return data, data_classes_count, ng_sequences_data
+    return data, data_classes_count, ng_sequences_data, windows_sub_sequences_data
 
 class GraphDataset(Dataset):
     def __init__(
@@ -495,6 +524,9 @@ class GraphDataset(Dataset):
         useNoise=False,
         useScaleAug=False,
         useTranslationAug=False,
+        use_aug_by_sw=False,
+        nb_sub_sequences=10,
+        sample_classes=False,
         mmap_mode="r",
         number_of_samples_per_class=0
     ):
@@ -517,7 +549,7 @@ class GraphDataset(Dataset):
         self.useNoise = useNoise
         self.useScaleAug = useScaleAug
         self.useTranslationAug = useTranslationAug
-        self.mmap_mode = mmap_mode
+        self.use_aug_by_sw=use_aug_by_sw
         self.number_of_samples_per_class=number_of_samples_per_class
         self.classes=["No gesture",
                         "RIGHT",
@@ -539,12 +571,24 @@ class GraphDataset(Dataset):
                         "EXPAND",
                         ]
         self.load_data()
-        self.sample_classes()
+        print("Number of gestures per class in the original "+self.set_name+" set :")
+        self.print_classes_information()
+        if sample_classes :
+            self.sample_classes(nb_sub_sequences)
+            
+        self.sample_no_gesture_class()
+        
         data=[]
         
         for idx,data_el in enumerate(self.data):
-            if np.array(data_el[0]).shape[0]>0 :   
-                data.append(data_el)
+            try :
+                if np.array(data_el[0]).shape[0]>0 :   
+                    data.append(data_el)
+            except :
+                print(data_el)
+            
+                
+                
                 
         self.data=data
 
@@ -557,35 +601,48 @@ class GraphDataset(Dataset):
                 for s in augmented_skeletons:
                     augmented_data.append((s,data_el[1]))
             self.data = augmented_data
-
+        if self.use_aug_by_sw or self.use_data_aug :
+            print("Number of gestures per class in the "+self.set_name+" set after augmentation:")
+            self.print_classes_information()
         # if normalization:
         #     self.get_mean_map()
 
     def load_data(self):
         # Data: N C V T M
-        self.data, data_classes_count, self.ng_sequences_data= gendata(
+        self.data, data_classes_count, self.ng_sequences_data, self.gesture_sub_sequences_data= gendata(
                 self.data_path,
                 self.set_name,
                 max_frame,
-                self.window_size
+                self.window_size,
+                self.use_aug_by_sw
         )
-        print("Number of gestures per class in the "+self.set_name+" set :")
-        for class_label in data_classes_count.keys():
-            print("Class",self.classes[class_label],"has",data_classes_count[class_label], "samples")
-    def sample_classes(self):
+        
+    def print_classes_information(self):
+        data_dict={ i:0 for i in range(len(self.classes))}
+        for seq,label in self.data:
+            data_dict[label]+=1
+        for class_label in data_dict.keys():
+            print("Class",self.classes[class_label],"has",data_dict[class_label], "samples")
+    def sample_no_gesture_class(self):
+        shuffle(self.ng_sequences_data)
+        samples=self.ng_sequences_data[:self.number_of_samples_per_class * 3]
+        
+        self.data=[*self.data,*samples]
+        
+    def sample_classes(self,nb_sub_sequences):
         # Data: N C V T M
         data_dict={ i:[] for i in range(len(self.classes))}
         data=[]
         for seq,label in self.data:
             data_dict[label].append((seq,label))
-        shuffle(self.ng_sequences_data)
         
-        data_dict[0]=self.ng_sequences_data
         
         for k in data_dict.keys():
-            samples=data_dict[k][:self.number_of_samples_per_class]
-            
+            samples=data_dict[k][:self.number_of_samples_per_class if k!=0 else self.number_of_samples_per_class * 3]
+            if self.use_aug_by_sw :
+                samples=[*samples, *self.gesture_sub_sequences_data[k][:nb_sub_sequences]]
             data=[*data,*samples]
+        
         self.data=data
         
         
@@ -721,7 +778,7 @@ class GraphDataset(Dataset):
         def random_sequence_fragments(sample):
             samples = [sample]
             sample = torch.from_numpy(sample)
-            n_fragments = 2
+            n_fragments = 5
             T, V, C = sample.shape
             if T <= self.window_size:
                 return samples
@@ -844,7 +901,7 @@ class GraphDataset(Dataset):
         tensor = torch.unsqueeze(torch.unsqueeze(
             torch.from_numpy(skeleton), dim=0), dim=0)
         
-        out = F.interpolate(
+        out = nn.functional.interpolate(
             tensor, size=[max_frames, tensor.shape[-2], tensor.shape[-1]], mode='trilinear')
         tensor = torch.squeeze(torch.squeeze(out, dim=0), dim=0)
 
@@ -881,7 +938,7 @@ class GraphDataset(Dataset):
             .reshape((C, 1, V, 1))
         )
 
-def load_data_sets(window_size=20, batch_size=32,workers=4):
+def load_data_sets(window_size=10, batch_size=32,workers=4):
     
     train_ds=GraphDataset("./data/SHREC21","training",window_size=window_size,
                                 use_data_aug=False,
@@ -896,10 +953,12 @@ def load_data_sets(window_size=20, batch_size=32,workers=4):
                                 useNoise=True,
                                 useScaleAug=False,
                                 useTranslationAug=False,
+                                  use_aug_by_sw=True,
+                                sample_classes=True,
                                 number_of_samples_per_class=23
                          )
     test_ds=GraphDataset("./data/SHREC21","test",window_size=window_size, use_data_aug=False,
-                                normalize=False, scaleInvariance=False, translationInvariance=False, isPadding=False, number_of_samples_per_class=14)
+                                normalize=False, scaleInvariance=False, translationInvariance=False, isPadding=False, number_of_samples_per_class=14,use_aug_by_sw=False,sample_classes=False)
     graph = Graph(layout="SHREC21",strategy="distance")
     print("train data num: ", len(train_ds))
     print("test data num: ", len(test_ds))

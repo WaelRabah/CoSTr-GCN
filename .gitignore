@@ -4,6 +4,7 @@ sequences
 gestures
 lightning_logs
 __pycache__
+.ipynb_checkpoints
 tb_logs
 data
 models
