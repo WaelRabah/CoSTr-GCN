@@ -83,8 +83,8 @@ def plot_history(history, title: str) -> None:
     plt.show()
 
     
-def init_model(graph, optimizer_params,num_classes,dropout_rate=.1):
-    model = STrGCN(graph, optimizer_params, d_model=128,n_heads=8,num_classes=num_classes, dropout=dropout_rate)
+def init_model(graph, optimizer_params, labels,num_classes,dropout_rate=.1):
+    model = STrGCN(graph, optimizer_params, labels, d_model=128,n_heads=8,num_classes=num_classes, dropout=dropout_rate)
     
 
     return model
@@ -133,8 +133,8 @@ def train_model(dataset_name="SHREC17"):
     epsilon=1e-9
     weight_decay=5e-4
     optimizer_params=(lr,betas,epsilon,weight_decay)
-    Max_Epochs = 50
-    Early_Stopping = 50
+    Max_Epochs = 500
+    Early_Stopping = 25
     dropout_rate=.3
     num_classes=18
 
@@ -151,8 +151,8 @@ def train_model(dataset_name="SHREC17"):
 
     #.........inital model
     print("\ninit model.............")
-    confusion_matrix = torch.zeros(num_classes, num_classes,device=device)
-    model = init_model(adjacency_matrix, optimizer_params, num_classes)
+    
+    model = init_model(adjacency_matrix, optimizer_params, labels, num_classes)
     print(f"d_model (the number of expected features in the encoder inputs/outputs):{d_model}")
     print(f"Number of heads :{n_heads}")
     print(f"dropout rate :{dropout_rate}")
@@ -169,7 +169,7 @@ def train_model(dataset_name="SHREC17"):
         monitor="val_accuracy", min_delta=0.00000001, patience=Early_Stopping, verbose=True, mode="max",check_on_train_epoch_end=True)
     logger = TensorBoardLogger("tb_logs", name=f"STrGCN_Model")
     history=History_dict()
-    trainer = pl.Trainer(gpus=1, precision=16, log_every_n_steps=20,
+    trainer = pl.Trainer(gpus=1, precision=16, log_every_n_steps=5,
                             max_epochs=Max_Epochs, logger=[history,logger], callbacks=[early_stop_callback, checkpoint_callback])
 
     #***********training#***********
@@ -177,8 +177,8 @@ def train_model(dataset_name="SHREC17"):
     torch.cuda.empty_cache()
     plt.figure(figsize=(15,8))
     plot_history(history.history,"STrGCN")
-    plot_confusion_matrix(confusion_matrix,labels,'Confusion_matrices/confusion_matrix_{}.eps'.format(dataset_name))
-    model = STrGCN.load_from_checkpoint(checkpoint_path=checkpoint_callback.best_model_path,adjacency_matrix=adjacency_matrix,optimizer_params=optimizer_params,d_model=d_model,n_heads=n_heads,num_classes=num_classes, dropout=dropout_rate,seq_len=seq_len)
+    # plot_confusion_matrix(confusion_matrix,labels,'Confusion_matrices/confusion_matrix_{}.eps'.format(dataset_name))
+    model = STrGCN.load_from_checkpoint(checkpoint_path=checkpoint_callback.best_model_path,adjacency_matrix=adjacency_matrix, optimizer_params=optimizer_params, labels=labels, d_model=128,n_heads=8,num_classes=num_classes, dropout=dropout_rate)
     test_metrics=trainer.test(dataloaders=test_loader)
 
     print(test_metrics)

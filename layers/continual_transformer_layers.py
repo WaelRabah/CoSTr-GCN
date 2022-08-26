@@ -23,16 +23,15 @@ State = Tuple[
 
 def feed_forward(dim_input: int = 128, dim_feedforward: int = 512) -> nn.Module:
     return nn.Sequential(
-        co.Linear(dim_input, dim_feedforward,dtype=torch.float),
+        nn.Linear(dim_input, dim_feedforward,dtype=torch.float),
         nn.Mish(),
-        co.Linear(dim_feedforward, dim_input,dtype=torch.float),
+        nn.Linear(dim_feedforward, dim_input,dtype=torch.float),
     )
     
 class Residual(nn.Module):
     def __init__(self, sublayer: nn.Module, dimension: int, dropout: float = 0.1):
         super().__init__()
         self.sublayer = sublayer
-        
         self.norm = nn.LayerNorm(dimension,dtype=torch.float)
         self.dropout = nn.Dropout(dropout)
 
@@ -62,9 +61,9 @@ def _scaled_dot_product_attention_default_state(
     V=num_nodes
     N = sequence_len
     Nq = sequence_len - query_index - 1 if query_index >= 0 else -query_index - 1
-    Q_mem = init_fn((B, V, Nq, embed_dim_k))
-    K_T_mem = init_fn((B, V, embed_dim_k, N))
-    V_mem = init_fn((B, V, N, embed_dim_v))
+    Q_mem = init_fn((B, V, Nq, embed_dim_k)).float()
+    K_T_mem = init_fn((B, V, embed_dim_k, N)).float()
+    V_mem = init_fn((B, V, N, embed_dim_v)).float()
     return (Q_mem, K_T_mem, V_mem)
 
 def _clone_state(state):
@@ -108,29 +107,31 @@ def _scaled_dot_product_attention_step(
 
     B, V, E = q_step.shape
     q_step = q_step / math.sqrt(E)
-    q_sel = (Q_mem[:,:, 0] if Q_mem.shape[2] > 0 else q_step).unsqueeze(2)
+    q_sel = (Q_mem[:B,:, 0] if Q_mem.shape[2] > 0 else q_step).unsqueeze(2).cuda()
     # Update states
     # Note: We're allowing the K and V mem to have one more entry than
     # strictly necessary to simplify computatations.
     K_T_new = torch.roll(K_T_mem, shifts=-1, dims=(3,))
-    K_T_new[:, :, :, -1] = k_step
+    K_T_new[:B, :, :, -1] = k_step
     V_new = torch.roll(V_mem, shifts=-1, dims=(2,))
-    V_new[:, :, -1] = v_step
+    V_new[:B, :, -1] = v_step
     
-    attn = torch.bmm(q_sel.reshape(-1,1,E), K_T_new.reshape(-1,E,T))
+    attn = torch.bmm(q_sel.reshape(-1,1,E), K_T_new[:q_sel.shape[0]].reshape(-1,E,T).cuda())
+    K_T_new=K_T_new.detach().cpu()
     attn_sm = F.softmax(attn, dim=-1)
     
     if dropout_p > 0.0:
         attn_sm = F.dropout(attn_sm, p=dropout_p)
     
     # (B, V, Nt, Ns) x (B, V, Ns, E) -> (B, V, Nt, E)
-    output = torch.bmm(attn_sm, V_new.reshape(-1,T,E)).reshape(B,V,-1,E)
+    output = torch.bmm(attn_sm, V_new[:B].reshape(-1,T,E).cuda()).reshape(B,V,-1,E)
+    
     if Q_mem.shape[2] > 0:
         Q_new = torch.roll(Q_mem, shifts=-1, dims=(2,))
-        Q_new[:, :, -1] = q_step
+        Q_new[:B, :, -1] = q_step.detach().cpu()
     else:
         Q_new = Q_mem
-    new_states = (Q_new, K_T_new, V_new)
+    new_states = (Q_new, K_T_new, V_new.detach().cpu())
     return output, new_states
 
 
@@ -361,6 +362,7 @@ class AttentionHead( nn.Module, co.CoModule):
       return attention_vectors
 
     def projection(self,x: Tensor):
+        
         x=x.permute(0,3,2,1)
         Q=self.q_conv(x).permute(0,3,2,1)
         K=self.k_conv(x).permute(0,3,2,1)
@@ -390,7 +392,7 @@ class MultiHeadAttention(co.CoModule,nn.Module):
         self.heads = nn.ModuleList(
             [AttentionHead(dim_in, dim_v, dim_k,dropout=dropout) for _ in range(num_heads)]
         )
-        self.linear = co.Linear(num_heads * dim_k, dim_in,dtype=torch.float)
+        self.linear = nn.Linear(num_heads * dim_k, dim_in,dtype=torch.float)
 
     def forward_steps(self, x: Tensor, pad_end=False, update_state=True) -> Tensor:
         out=self.linear(
@@ -425,9 +427,9 @@ class TransformerGraphEncoderLayer(nn.Module):
         )
         self.norm = nn.LayerNorm(dim_model,dtype=torch.float)
     def forward(self, src: Tensor) -> Tensor:
-        print("before",torch.cuda.mem_get_info(torch.device('cuda:0')))
+        # print("before",torch.cuda.mem_get_info(torch.device('cuda:0')))
         src = self.attention(self.norm(src))
-        print("after",torch.cuda.mem_get_info(torch.device('cuda:0')))
+        # print("after",torch.cuda.mem_get_info(torch.device('cuda:0')))
         return self.feed_forward(src)
 
 class PositionalEncoder(nn.Module):

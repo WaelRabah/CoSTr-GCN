@@ -571,12 +571,13 @@ class GraphDataset(Dataset):
                         "EXPAND",
                         ]
         self.load_data()
+        self.sample_no_gesture_class()
         print("Number of gestures per class in the original "+self.set_name+" set :")
         self.print_classes_information()
         if sample_classes :
             self.sample_classes(nb_sub_sequences)
             
-        self.sample_no_gesture_class()
+        
         
         data=[]
         
@@ -625,7 +626,8 @@ class GraphDataset(Dataset):
             print("Class",self.classes[class_label],"has",data_dict[class_label], "samples")
     def sample_no_gesture_class(self):
         shuffle(self.ng_sequences_data)
-        samples=self.ng_sequences_data[:self.number_of_samples_per_class * 3]
+        print(len(self.ng_sequences_data))
+        samples=self.ng_sequences_data[:self.number_of_samples_per_class ]
         
         self.data=[*self.data,*samples]
         
@@ -901,7 +903,7 @@ class GraphDataset(Dataset):
         tensor = torch.unsqueeze(torch.unsqueeze(
             torch.from_numpy(skeleton), dim=0), dim=0)
         
-        out = nn.functional.interpolate(
+        out = F.interpolate(
             tensor, size=[max_frames, tensor.shape[-2], tensor.shape[-1]], mode='trilinear')
         tensor = torch.squeeze(torch.squeeze(out, dim=0), dim=0)
 
