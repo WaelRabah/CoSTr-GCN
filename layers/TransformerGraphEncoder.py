@@ -404,8 +404,9 @@ class MultiHeadAttention(co.CoModule,nn.Module):
         return self.linear(
             torch.cat([h(x) for h in self.heads], dim=-1)
         )
+        
 
-class TransformerGraphEncoderLayer(nn.Module):
+class TransformerGraphEncoderLayer(co.CoModule, nn.Module):
     def __init__(
         self,
         dim_model: int = 128,
@@ -426,6 +427,19 @@ class TransformerGraphEncoderLayer(nn.Module):
             dropout=dropout,
         )
         self.norm = nn.LayerNorm(dim_model,dtype=torch.double)
+    def clean_state(self):
+        """Clean model state"""
+        if hasattr(self, "Q_mem"):
+            del self.Q_mem
+        if hasattr(self, "K_T_mem"):
+            del self.K_T_mem
+        if hasattr(self, "V_mem"):
+            del self.V_mem
+        if hasattr(self, "stride_index"):
+            del self.stride_index
+    def forward_steps(self, x: Tensor, pad_end=False, update_state=True) -> Tensor:
+        
+        return self.forward(x)
     def forward(self, src: Tensor) -> Tensor:
         # print("before",torch.cuda.mem_get_info(torch.device('cuda:0')))
         src = self.attention(self.norm(src))
