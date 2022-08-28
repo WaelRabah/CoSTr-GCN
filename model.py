@@ -206,7 +206,6 @@ class STrGCN(pl.LightningModule):
         self.cnf_matrix+=self.confusion_matrix(preds,targets)
 
     def on_test_end(self):
-        print("fuuucckkk")
         time_now=datetime.today().strftime('%Y-%m-%d_%H_%M_%S')
         self.plot_confusion_matrix(f"./Confusion_matrices/Confusion_matrix_{time_now}.eps")
 

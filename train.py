@@ -99,10 +99,10 @@ def train_model(dataset_name="SHREC17"):
     torch.autograd.set_detect_anomaly(True)
     torch.cuda.manual_seed(42)
     def init_data_loader():
-        train_loader, val_loader, graph= load_data_sets(window_size=window_size,batch_size=batch_size,workers=workers)
+        train_loader, val_loader, test_loader, graph= load_data_sets(window_size=window_size,batch_size=batch_size,workers=workers)
 
 
-        return train_loader, val_loader, val_loader, graph
+        return train_loader, test_loader, val_loader, graph
     # print("Data Config=",data_cfg)
     train_loader, test_loader, val_loader, adjacency_matrix = init_data_loader()
 
@@ -173,13 +173,13 @@ def train_model(dataset_name="SHREC17"):
                             max_epochs=Max_Epochs, logger=[history,logger], callbacks=[early_stop_callback, checkpoint_callback])
 
     #***********training#***********
-    trainer.fit(model, train_loader, val_loader)
+    # trainer.fit(model, train_loader, val_loader)
     torch.cuda.empty_cache()
     plt.figure(figsize=(15,8))
     plot_history(history.history,"STrGCN")
     # plot_confusion_matrix(confusion_matrix,labels,'Confusion_matrices/confusion_matrix_{}.eps'.format(dataset_name))
-    model = STrGCN.load_from_checkpoint(checkpoint_path=checkpoint_callback.best_model_path,adjacency_matrix=adjacency_matrix, optimizer_params=optimizer_params, labels=labels, d_model=128,n_heads=8,num_classes=num_classes, dropout=dropout_rate)
-    test_metrics=trainer.test(dataloaders=test_loader)
+    model = STrGCN.load_from_checkpoint(checkpoint_path="./models/STRGCN-SHREC17_2022-08-26_12_09_53/best_model-128-8-v1.ckpt",adjacency_matrix=adjacency_matrix, optimizer_params=optimizer_params, labels=labels, d_model=128,n_heads=8,num_classes=num_classes, dropout=dropout_rate)
+    test_metrics=trainer.test(model,dataloaders=test_loader)
 
     print(test_metrics)
 
