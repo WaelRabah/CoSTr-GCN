@@ -9,6 +9,8 @@ import torch.nn.functional as F
 
 torch.manual_seed(42)
 torch.cuda.manual_seed(42)
+
+
 def edge2mat(link, num_node):
     A = np.zeros((num_node, num_node))
     for i, j in link:
@@ -105,25 +107,25 @@ class Graph():
             self.num_node = 20
             self_link = [(i, i) for i in range(self.num_node)]
             neighbor_link = [
-        (0, 1),
-        (1, 2),
-        (2, 3),
-        (0, 4),
-        (4, 5),
-        (5, 6),
-        (6, 7),
-        (0, 8),
-        (8, 9),
-        (9, 10),
-        (10, 11),
-        (0, 12),
-        (12, 13),
-        (13, 14),
-        (14, 15),
-        (0, 16),
-        (16, 17),
-        (17, 18),
-        (18, 19),
+                (0, 1),
+                (1, 2),
+                (2, 3),
+                (0, 4),
+                (4, 5),
+                (5, 6),
+                (6, 7),
+                (0, 8),
+                (8, 9),
+                (9, 10),
+                (10, 11),
+                (0, 12),
+                (12, 13),
+                (13, 14),
+                (14, 15),
+                (0, 16),
+                (16, 17),
+                (17, 18),
+                (18, 19),
             ]
             self.edge = self_link + neighbor_link
             self.center = 0
@@ -254,7 +256,8 @@ class Graph():
 
 
 num_joint = 20
-max_frame = 600
+max_frame = 2500
+
 
 class Feeder_SHREC21(Dataset):
     """
@@ -268,34 +271,36 @@ class Feeder_SHREC21(Dataset):
             data_path="SHREC21",
             set_name="training",
             window_size=10,
-            aug_by_sw=False
+            aug_by_sw=False,
+            is_segmented=False
     ):
         self.data_path = data_path
         self.set_name = set_name
-        self.classes=["",
-                    "RIGHT",
-                    "KNOB",
-                    "CROSS",
-                    "THREE",
-                    "V",
-                    "ONE",
-                    "FOUR",
-                    "GRAB",
-                    "DENY",
-                    "MENU",
-                    "CIRCLE",
-                    "TAP",
-                    "PINCH",
-                    "LEFT",
-                    "TWO",
-                    "OK",
-                    "EXPAND",
-                    ]
-        self.class_to_idx={ class_l:idx for idx, class_l in enumerate(self.classes)}
-        self.window_size=window_size
-        self.aug_by_sw=aug_by_sw
+        self.classes = ["",
+                        "RIGHT",
+                        "KNOB",
+                        "CROSS",
+                        "THREE",
+                        "V",
+                        "ONE",
+                        "FOUR",
+                        "GRAB",
+                        "DENY",
+                        "MENU",
+                        "CIRCLE",
+                        "TAP",
+                        "PINCH",
+                        "LEFT",
+                        "TWO",
+                        "OK",
+                        "EXPAND",
+                        ]
+        self.class_to_idx = {class_l: idx for idx,
+                             class_l in enumerate(self.classes)}
+        self.window_size = window_size
+        self.aug_by_sw = aug_by_sw
+        self.is_segmented = is_segmented
         self.load_data()
-
 
     def load_data(self):
         self.dataset = []
@@ -317,7 +322,8 @@ class Feeder_SHREC21(Dataset):
                     gesture_label = gesture_info[0]
                     gesture_start = gesture_info[1]
                     gesture_end = gesture_info[2]
-                    gesture_infos.append((gesture_start, gesture_end, gesture_label))
+                    gesture_infos.append(
+                        (gesture_start, gesture_end, gesture_label))
                     # classes.add(gesture_label)
                 self.dataset.append((seq_idx, gesture_infos))
 
@@ -337,7 +343,7 @@ class Feeder_SHREC21(Dataset):
             Retrieves the skeletons sequence for each gesture
             '''
             video = []
-            mode="pos"
+            mode = "pos"
             for line in src_file:
 
                 line = line.split("\n")[0]
@@ -347,21 +353,21 @@ class Feeder_SHREC21(Dataset):
                 frame = []
                 point = []
                 for data_ele in data:
-                    if len(data_ele)==0:
+                    if len(data_ele) == 0:
                         continue
                     point.append(float(data_ele))
 
-                    if len(point) == 3 and mode=="pos":
+                    if len(point) == 3 and mode == "pos":
                         frame.append(point)
                         point = []
-                        mode="quat"
-                    elif len(point) == 4 and mode=="quat":
+                        mode = "quat"
+                    elif len(point) == 4 and mode == "quat":
                         frame.append(point)
                         point = []
-                        mode="pos"
-                if len(frame) > 0 :
-                    positions   =[]
-                    quats=[]
+                        mode = "pos"
+                if len(frame) > 0:
+                    positions = []
+                    quats = []
 
                     for i in range(num_joint):
                         positions.append(frame[i*2])
@@ -369,7 +375,8 @@ class Feeder_SHREC21(Dataset):
 
                     video.append(positions)
             return np.array(video)
-        def sample_window(data_num,stride):
+
+        def sample_window(data_num, stride):
             # sample #window_size frames from whole video
 
             sample_size = self.window_size
@@ -388,123 +395,151 @@ class Feeder_SHREC21(Dataset):
             return idx_list
         # output shape (C, T, V, M)
         # get data
-        seq_idx, gesture_infos = self.dataset[index]
-        with open(f'{self.data_path}/{self.set_name}_set/sequences/{seq_idx}.txt', mode="r") as seq_f:
-            sequence = parse_seq_data(seq_f)
-        labeled_sequence = [(f, "") for f in sequence]
-        # if len(labeled_sequence) > max_frame:
-        #     max_frame = len(labeled_sequence)
-        for gesture_start, gesture_end, gesture_label in gesture_infos:
-            labeled_sequence = [
-                (np.array(f), gesture_label if int(gesture_start) <= idx <= int(gesture_end) and label == "" else label)
-                for
-                idx, (f, label) in enumerate(labeled_sequence)]
 
-        frames = [f for f, l in labeled_sequence]
-        # print(len(self.classes))
-        labels_per_frame = [self.class_to_idx[l] for f, l in labeled_sequence]
-        gestures=[]
-        windows_sub_sequences_per_gesture={ i:[] for i in range(len(self.classes))}
+        def get_segmented(seq_idx, gesture_infos):
+            with open(f'{self.data_path}/{self.set_name}_set/sequences/{seq_idx}.txt', mode="r") as seq_f:
+                sequence = parse_seq_data(seq_f)
+            labeled_sequence = [(f, "") for f in sequence]
+            # if len(labeled_sequence) > max_frame:
+            #     max_frame = len(labeled_sequence)
+            for gesture_start, gesture_end, gesture_label in gesture_infos:
+                labeled_sequence = [
+                    (np.array(f), gesture_label if int(gesture_start) <=
+                     idx <= int(gesture_end) and label == "" else label)
+                    for
+                    idx, (f, label) in enumerate(labeled_sequence)]
 
-        for gesture_start, gesture_end, gesture_label in gesture_infos: 
-            gesture_start=int(gesture_start)
-            gesture_end=int(gesture_end)
-            g_frames=frames[gesture_start:gesture_end]
-            g_label=labels_per_frame[gesture_start:gesture_end]
-            gestures.append((g_frames,g_label))
-            label=self.class_to_idx[gesture_label]
-            if self.aug_by_sw :
-                num_windows=len(g_frames) // self.window_size
-                
-                for stride in range(1,self.window_size) :
-                    l=len(g_frames)
-                    if l // stride >= self.window_size :
-                        window_indices=sample_window(l,stride)
-                        window=[ g_frames[idx] for idx in window_indices]
-                        windows_sub_sequences_per_gesture[label].append((window,label))
-                
+            frames = [f for f, l in labeled_sequence]
+            # print(len(self.classes))
+            labels_per_frame = [self.class_to_idx[l]
+                                for f, l in labeled_sequence]
+            gestures = []
+            windows_sub_sequences_per_gesture = {
+                i: [] for i in range(len(self.classes))}
 
-        ng_sequences=[]
-        ng_seq=[]
-        l=len(frames)
-        indices_ng=[]
-        for i in range(len(frames)-1):
-            f_curr=frames[i]
-            f_next=frames[i+1]
-            l_curr=labels_per_frame[i]
-            l_next=labels_per_frame[i+1]
+            for gesture_start, gesture_end, gesture_label in gesture_infos:
+                gesture_start = int(gesture_start)
+                gesture_end = int(gesture_end)
+                g_frames = frames[gesture_start:gesture_end]
+                g_label = labels_per_frame[gesture_start:gesture_end]
+                gestures.append((g_frames, g_label))
+                label = self.class_to_idx[gesture_label]
+                if self.aug_by_sw:
+                    num_windows = len(g_frames) // self.window_size
 
-            if l_curr==0 and l_next==0 :
-                indices_ng.append(i)
-                ng_seq.append(f_curr)
-                if i==l-2:
-                    ng_seq.append(f_next)
-                    ng_sequences.append((ng_seq,0))
-                    ng_seq=[]
+                    for stride in range(1, self.window_size):
+                        l = len(g_frames)
+                        if l // stride >= self.window_size:
+                            window_indices = sample_window(l, stride)
+                            window = [g_frames[idx] for idx in window_indices]
+                            windows_sub_sequences_per_gesture[label].append(
+                                (window, label))
+
+            ng_sequences = []
+            ng_seq = []
+            l = len(frames)
+            indices_ng = []
+            for i in range(len(frames)-1):
+                f_curr = frames[i]
+                f_next = frames[i+1]
+                l_curr = labels_per_frame[i]
+                l_next = labels_per_frame[i+1]
+
+                if l_curr == 0 and l_next == 0:
+                    indices_ng.append(i)
+                    ng_seq.append(f_curr)
+                    if i == l-2:
+                        ng_seq.append(f_next)
+                        ng_sequences.append((ng_seq, 0))
+                        ng_seq = []
+                        continue
+                elif l_curr == 0 and l_next != 0:
+                    indices_ng.append(i)
+                    ng_seq.append(f_curr)
+                    ng_sequences.append((ng_seq, 0))
+                    ng_seq = []
                     continue
-            elif l_curr==0 and l_next!=0 :
-                indices_ng.append(i)
-                ng_seq.append(f_curr)
-                ng_sequences.append((ng_seq,0))
-                ng_seq=[]
-                continue
-        
-        return  gestures, ng_sequences, windows_sub_sequences_per_gesture
 
-def get_window_label(label,num_classes=18):
+            return gestures, ng_sequences, windows_sub_sequences_per_gesture
 
-    W=len(label)
-    sum=torch.zeros((num_classes))
+        def get_full_sequences(seq_idx, gesture_infos):
+            with open(f'{self.data_path}/{self.set_name}_set/sequences/{seq_idx}.txt', mode="r") as seq_f:
+                sequence = parse_seq_data(seq_f)
+            labeled_sequence = [(f, "") for f in sequence]
+            # if len(labeled_sequence) > max_frame:
+            #     max_frame = len(labeled_sequence)
+            for gesture_start, gesture_end, gesture_label in gesture_infos:
+                labeled_sequence = [
+                    (np.array(f), gesture_label if int(gesture_start) <=
+                     idx <= int(gesture_end) and label == "" else label)
+                    for
+                    idx, (f, label) in enumerate(labeled_sequence)]
+
+            frames = [f for f, l in labeled_sequence]
+
+            labels_per_frame = [self.classes.index(
+                l) for f, l in labeled_sequence]
+            return labeled_sequence, np.array(frames), labels_per_frame
+        seq_idx, gesture_infos = self.dataset[index]
+
+        if self.is_segmented:
+            return get_segmented(seq_idx, gesture_infos)
+        else:
+            return get_full_sequences(seq_idx, gesture_infos)
+
+
+def get_window_label(label, num_classes=18):
+
+    W = len(label)
+    sum = torch.zeros((num_classes))
     for t in range(W):
-        sum[ label[t]] += 1
-    return  sum.argmax(dim=-1).item()
+        sum[label[t]] += 1
+    return sum.argmax(dim=-1).item()
+
 
 def gendata(
         data_path,
         set_name,
         max_frame,
         window_size=20,
-        aug_by_sw=False
+        aug_by_sw=False,
+        is_segmented=False
 ):
     feeder = Feeder_SHREC21(
         data_path=data_path,
         set_name=set_name,
         window_size=window_size,
-        aug_by_sw=aug_by_sw
+        aug_by_sw=aug_by_sw,
+        is_segmented=is_segmented
     )
     dataset = feeder.dataset
+    if is_segmented:
+        data = []
+        ng_sequences_data = []
+        windows_sub_sequences_data = {i: []
+                                      for i in range(len(feeder.classes))}
+        for i, s in enumerate(tqdm(dataset)):
+            data_el, ng_sequences, windows_sub_sequences_per_gesture = feeder[i]
+            ng_sequences_data = [*ng_sequences_data, *ng_sequences]
+            l = len(data_el)
+            # for w in range(num_windows):
+            for idx, gesture in enumerate(data_el):
+                current_skeletons_window = np.array(gesture[0])
+                label = gesture[1]
+                label = get_window_label(label)
+                windows_sub_sequences_data[label] = [
+                    *windows_sub_sequences_data[label], *windows_sub_sequences_per_gesture[label]]
+                data.append((current_skeletons_window, label))
 
-    data = []
-    ng_sequences_data=[]
-    windows_sub_sequences_data={ i:[] for i in range(len(feeder.classes))}
-    for i, s in enumerate(tqdm(dataset)):
-        data_el,ng_sequences, windows_sub_sequences_per_gesture = feeder[i]
-        ng_sequences_data=[*ng_sequences_data,*ng_sequences]
-        l=len(data_el)
-        # for w in range(num_windows):
-        for idx,gesture in enumerate(data_el) :
-            current_skeletons_window = np.array(gesture[0])
-            label = gesture[1]
-            label = get_window_label(label)
-            windows_sub_sequences_data[label]=[*windows_sub_sequences_data[label],*windows_sub_sequences_per_gesture[label]]
-            data.append((current_skeletons_window,label)) 
-    
-    data_classes_count={}
-    
-    for seq,label in data:
-        if label in data_classes_count:
-            data_classes_count[label]+=1
-        else :
-            data_classes_count[label]=1
-    data_classes_count[0]=len(ng_sequences_data)
+        return data, ng_sequences_data, windows_sub_sequences_data
+    else:
+        data = []
+        for i, s in enumerate(tqdm(dataset)):
+            labeled_seq, frames, labels = feeder[i]
+            data.append((frames, labels))
 
-        
-    # with open(label_out_path, "wb") as f:
-    #     pickle.dump((set_name, list(total_labels)), f)
+        return data
 
-    # np.save(data_out_path, fp)
-
-    return data, data_classes_count, ng_sequences_data, windows_sub_sequences_data
 
 class GraphDataset(Dataset):
     def __init__(
@@ -527,13 +562,13 @@ class GraphDataset(Dataset):
         use_aug_by_sw=False,
         nb_sub_sequences=10,
         sample_classes=False,
-        mmap_mode="r",
+        is_segmented=False,
         number_of_samples_per_class=0
     ):
         """Initialise a Graph dataset
         """
         self.data_path = data_path
-        self.set_name= set_name
+        self.set_name = set_name
         self.use_data_aug = use_data_aug
         self.window_size = window_size
         self.compoent_num = 20
@@ -549,9 +584,12 @@ class GraphDataset(Dataset):
         self.useNoise = useNoise
         self.useScaleAug = useScaleAug
         self.useTranslationAug = useTranslationAug
-        self.use_aug_by_sw=use_aug_by_sw
-        self.number_of_samples_per_class=number_of_samples_per_class
-        self.classes=["No gesture",
+        self.use_aug_by_sw = use_aug_by_sw
+        self.number_of_samples_per_class = number_of_samples_per_class
+        self.is_segmented = is_segmented
+        self.nb_sub_sequences=nb_sub_sequences
+        self.sample_classes_=sample_classes
+        self.classes = ["No gesture",
                         "RIGHT",
                         "KNOB",
                         "CROSS",
@@ -571,90 +609,99 @@ class GraphDataset(Dataset):
                         "EXPAND",
                         ]
         self.load_data()
-        self.sample_no_gesture_class()
-        print("Number of gestures per class in the original "+self.set_name+" set :")
-        self.print_classes_information()
-        if sample_classes :
-            self.sample_classes(nb_sub_sequences)
-            
         
-        
-        data=[]
-        
-        for idx,data_el in enumerate(self.data):
-            try :
-                if np.array(data_el[0]).shape[0]>0 :   
-                    data.append(data_el)
-            except :
-                print(data_el)
-            
-                
-                
-                
-        self.data=data
 
-        if self.use_data_aug:
-            print("Augmenting data ....")
-            augmented_data = []
-            for idx,data_el in enumerate(self.data):
-                augmented_skeletons = self.data_aug(self.preprocessSkeleton(
-                    torch.from_numpy(np.array(data_el[0])).float()))
-                for s in augmented_skeletons:
-                    augmented_data.append((s,data_el[1]))
-            self.data = augmented_data
-        if self.use_aug_by_sw or self.use_data_aug :
-            print("Number of gestures per class in the "+self.set_name+" set after augmentation:")
-            self.print_classes_information()
-        # if normalization:
-        #     self.get_mean_map()
+
+
+        
+
+
+
+
 
     def load_data(self):
         # Data: N C V T M
-        self.data, data_classes_count, self.ng_sequences_data, self.gesture_sub_sequences_data= gendata(
+        if self.is_segmented :
+            self.data, self.ng_sequences_data, self.gesture_sub_sequences_data = gendata(
                 self.data_path,
                 self.set_name,
                 max_frame,
                 self.window_size,
-                self.use_aug_by_sw
-        )
-        
+                self.use_aug_by_sw,
+                self.is_segmented
+            )
+            self.sample_no_gesture_class()
+            print("Number of gestures per class in the original "+self.set_name+" set :")
+            self.print_classes_information()
+            data = []
+            for idx, data_el in enumerate(self.data):
+                if np.array(data_el[0]).shape[0] > 0:
+                    data.append(data_el)
+
+            self.data = data
+            if self.sample_classes_:
+                self.sample_classes(self.nb_sub_sequences)
+            if self.use_data_aug:
+                print("Augmenting data ....")
+                augmented_data = []
+                for idx, data_el in enumerate(self.data):
+                    augmented_skeletons = self.data_aug(self.preprocessSkeleton(
+                        torch.from_numpy(np.array(data_el[0])).float()))
+                    for s in augmented_skeletons:
+                        augmented_data.append((s, data_el[1]))
+                self.data = augmented_data
+            if self.use_aug_by_sw or self.use_data_aug:
+                print("Number of gestures per class in the " +
+                    self.set_name+" set after augmentation:")
+                self.print_classes_information()
+        else :
+            self.data = gendata(
+                self.data_path,
+                self.set_name,
+                max_frame,
+                self.window_size,
+                self.use_aug_by_sw,
+                self.is_segmented
+            )
+
     def print_classes_information(self):
-        data_dict={ i:0 for i in range(len(self.classes))}
-        for seq,label in self.data:
-            data_dict[label]+=1
+        data_dict = {i: 0 for i in range(len(self.classes))}
+        for seq, label in self.data:
+            data_dict[label] += 1
         for class_label in data_dict.keys():
-            print("Class",self.classes[class_label],"has",data_dict[class_label], "samples")
+            print("Class", self.classes[class_label],
+                  "has", data_dict[class_label], "samples")
+
     def sample_no_gesture_class(self):
         shuffle(self.ng_sequences_data)
         print(len(self.ng_sequences_data))
-        samples=self.ng_sequences_data[:self.number_of_samples_per_class ]
-        
-        self.data=[*self.data,*samples]
-        
-    def sample_classes(self,nb_sub_sequences):
+        samples = self.ng_sequences_data[:self.number_of_samples_per_class]
+
+        self.data = [*self.data, *samples]
+
+    def sample_classes(self, nb_sub_sequences):
         # Data: N C V T M
-        data_dict={ i:[] for i in range(len(self.classes))}
-        data=[]
-        for seq,label in self.data:
-            data_dict[label].append((seq,label))
-        
-        
+        data_dict = {i: [] for i in range(len(self.classes))}
+        data = []
+        for seq, label in self.data:
+            data_dict[label].append((seq, label))
+
         for k in data_dict.keys():
-            samples=data_dict[k][:self.number_of_samples_per_class if k!=0 else self.number_of_samples_per_class * 3]
-            if self.use_aug_by_sw :
-                samples=[*samples, *self.gesture_sub_sequences_data[k][:nb_sub_sequences]]
-            data=[*data,*samples]
-        
-        self.data=data
-        
-        
+            samples = data_dict[k][:self.number_of_samples_per_class if k !=
+                                   0 else self.number_of_samples_per_class * 3]
+            if self.use_aug_by_sw:
+                samples = [
+                    *samples, *self.gesture_sub_sequences_data[k][:nb_sub_sequences]]
+            data = [*data, *samples]
+
+        self.data = data
+
     def __len__(self):
         return len(self.data)
-        
-        
 
     def __iter__(self):
         return self
+
     def preprocessSkeleton(self, skeleton):
         def translationInvariance(skeleton):
             # normalize by palm center value at frame=1
@@ -689,9 +736,10 @@ class GraphDataset(Dataset):
             skeleton = translationInvariance(skeleton)
 
         return skeleton
+
     def __getitem__(self, index):
-        
-        data_numpy,label = self.data[index]
+
+        data_numpy, label = self.data[index]
         # label = self.labels[index]
 
         skeleton = np.array(data_numpy)
@@ -700,16 +748,25 @@ class GraphDataset(Dataset):
         #     pass
 
         data_num = skeleton.shape[0]
-        if self.isPadding:
-            # padding
-            skeleton = self.auto_padding(skeleton, self.max_seq_size)
-            # label
-
+        if self.is_segmented==False :
+            if data_num < max_frame :
+                if self.isPadding:
+                    # padding
+                    skeleton = self.auto_padding(skeleton, max_frame)
+                    # label
+                    label=[*label,*[ 0 for _ in range(max_frame-len(label))]]
+                else :
+                    skeleton = self.upsample(skeleton, self.window_size)
+            else :
+                idx_list = self.sample_frames(data_num, max_frame)
+                skeleton = [skeleton[idx] for idx in idx_list]
+                skeleton = np.array(skeleton)
+                skeleton = torch.from_numpy(skeleton)
 
             return skeleton, label, index
-
+            
         if data_num >= self.window_size:
-            idx_list = self.sample_frames(data_num)
+            idx_list = self.sample_frames(data_num, self.window_size)
             skeleton = [skeleton[idx] for idx in idx_list]
             skeleton = np.array(skeleton)
             skeleton = torch.from_numpy(skeleton)
@@ -870,31 +927,22 @@ class GraphDataset(Dataset):
             skeletons.append(shift(skeleton))
 
         if self.useSequenceFragments:
-            n_skeletons = []
-            for s in skeletons:
-                n_skeletons = [*n_skeletons, *random_sequence_fragments(s)]
-            skeletons = [*skeletons, *n_skeletons]
+            skeletons = [*skeletons, random_sequence_fragments(s)]
 
         if self.useRandomMoving:
-            # aug_skeletons = []
-            # for s in skeletons:
-            #     aug_skeletons.append(random_moving(s))
             skeletons.append(random_moving(skeleton))
 
         if self.useMirroring:
-            aug_skeletons = []
-            for s in skeletons:
-                aug_skeletons.append(mirroring(s))
-            skeletons = [*skeletons, *aug_skeletons]
+            skeletons = [*skeletons, mirroring(s)]
 
         return skeletons
 
     def auto_padding(self, data_numpy, size, random_pad=False):
-        C, T, V = data_numpy.shape
+        T, V, C = data_numpy.shape
         if T < size:
             begin = random.randint(0, size - T) if random_pad else 0
-            data_numpy_paded = np.zeros((C, size, V))
-            data_numpy_paded[:, begin:begin + T, :] = data_numpy
+            data_numpy_paded = np.zeros((size, V, C))
+            data_numpy_paded[begin:begin + T, :, :] = data_numpy
             return data_numpy_paded
         else:
             return data_numpy
@@ -902,17 +950,16 @@ class GraphDataset(Dataset):
     def upsample(self, skeleton, max_frames):
         tensor = torch.unsqueeze(torch.unsqueeze(
             torch.from_numpy(skeleton), dim=0), dim=0)
-        
+
         out = F.interpolate(
             tensor, size=[max_frames, tensor.shape[-2], tensor.shape[-1]], mode='trilinear')
         tensor = torch.squeeze(torch.squeeze(out, dim=0), dim=0)
 
         return tensor
 
-    def sample_frames(self, data_num):
+    def sample_frames(self, data_num,sample_size):
         # sample #window_size frames from whole video
 
-        sample_size = self.window_size
         each_num = (data_num - 1) / (sample_size - 1)
         idx_list = [0, data_num - 1]
         for i in range(sample_size):
@@ -927,41 +974,41 @@ class GraphDataset(Dataset):
                 idx_list.append(idx)
         idx_list.sort()
         return idx_list
-    def get_mean_map(self):
-        data = self.data
-        N, C, T, V = data.shape
-        self.mean_map = (
-            data.mean(axis=2, keepdims=True).mean(axis=4, keepdims=True).mean(axis=0)
-        )
-        self.std_map = (
-            data.transpose((0, 2, 3, 1))
-            .reshape((N * T, C * V))
-            .std(axis=0)
-            .reshape((C, 1, V, 1))
-        )
 
-def load_data_sets(window_size=10, batch_size=32,workers=4):
-    
-    train_ds=GraphDataset("./data/SHREC21","training",window_size=window_size,
-                                use_data_aug=False,
-                                normalize=False, 
-                                scaleInvariance=False,
-                                translationInvariance=False, 
-                                useRandomMoving=True, 
-                                isPadding=False, 
-                                useSequenceFragments=False, 
-                                useMirroring=False,
-                                useTimeInterpolation=False,
-                                useNoise=True,
-                                useScaleAug=False,
-                                useTranslationAug=False,
-                                  use_aug_by_sw=True,
-                                sample_classes=True,
-                                number_of_samples_per_class=23
-                         )
-    test_ds=GraphDataset("./data/SHREC21","test",window_size=window_size, use_data_aug=False,
-                                normalize=False, scaleInvariance=False, translationInvariance=False, isPadding=False, number_of_samples_per_class=14,use_aug_by_sw=False,sample_classes=False)
-    graph = Graph(layout="SHREC21",strategy="distance")
+
+
+def load_data_sets(window_size=10, batch_size=32, workers=4):
+
+    train_ds = GraphDataset("./data/SHREC21", "training", window_size=window_size,
+                            use_data_aug=True,
+                            normalize=False,
+                            scaleInvariance=False,
+                            translationInvariance=False,
+                            useRandomMoving=True,
+                            isPadding=False,
+                            useSequenceFragments=False,
+                            useMirroring=False,
+                            useTimeInterpolation=False,
+                            useNoise=True,
+                            useScaleAug=False,
+                            useTranslationAug=False,
+                            use_aug_by_sw=True,
+                            sample_classes=True,
+                            number_of_samples_per_class=23,
+                            is_segmented=True
+                            )
+    test_ds = GraphDataset("./data/SHREC21", "test",
+                           window_size=window_size,
+                           use_data_aug=False,
+                           normalize=False,
+                           scaleInvariance=False,
+                           translationInvariance=False,
+                           isPadding=True,
+                           number_of_samples_per_class=14,
+                           use_aug_by_sw=False,
+                           sample_classes=False,
+                           is_segmented=True)
+    graph = Graph(layout="SHREC21", strategy="distance")
     print("train data num: ", len(train_ds))
     print("test data num: ", len(test_ds))
 
@@ -974,5 +1021,9 @@ def load_data_sets(window_size=10, batch_size=32,workers=4):
         test_ds,
         batch_size=batch_size, shuffle=True,
         num_workers=workers, pin_memory=False)
-    
-    return train_loader, val_loader, torch.from_numpy(graph.A)
+    test_loader = torch.utils.data.DataLoader(
+        test_ds,
+        batch_size=1, shuffle=True,
+        num_workers=workers, pin_memory=False)
+
+    return train_loader, val_loader, test_loader, torch.from_numpy(graph.A)

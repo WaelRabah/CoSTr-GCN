@@ -11,7 +11,7 @@ import continual as co
 from typing import  Tuple, Optional, Any, Union
 from functools import partial
 from continual import TensorPlaceholder
-
+from continual.module import CallMode
 
 MaybeTensor=Union[Tensor, TensorPlaceholder]
 State = Tuple[
@@ -21,20 +21,31 @@ State = Tuple[
 ]
 
 
-def feed_forward(dim_input: int = 128, dim_feedforward: int = 512) -> nn.Module:
-    return nn.Sequential(
-        nn.Linear(dim_input, dim_feedforward,dtype=torch.float),
+
+class FeedForward(nn.Module, co.CoModule):
+    def __init__(self, dim_input: int = 128, dim_feedforward: int = 512):
+        super().__init__()
+        self.call_mode = CallMode.FORWARD_STEPS
+        self.out=nn.Sequential(
+        nn.Linear(dim_input, dim_feedforward,dtype=torch.float).cuda(),
         nn.Mish(),
-        nn.Linear(dim_feedforward, dim_input,dtype=torch.float),
+        nn.Linear(dim_feedforward, dim_input,dtype=torch.float).cuda(),
     )
-    
-class Residual(nn.Module):
+    def clean_state(self):
+        pass
+    def forward(self, x: Tensor) -> Tensor:
+        return self.out(x) 
+class Residual(nn.Module, co.CoModule):
     def __init__(self, sublayer: nn.Module, dimension: int, dropout: float = 0.1):
         super().__init__()
+        self.call_mode = CallMode.FORWARD_STEPS
         self.sublayer = sublayer
-        self.norm = nn.LayerNorm(dimension,dtype=torch.float)
+        self.norm = nn.LayerNorm(dimension,dtype=torch.float).cuda()
         self.dropout = nn.Dropout(dropout)
-
+    def clean_state(self):
+        self.sublayer.clean_state()
+    def forward_steps(self, x: Tensor) -> Tensor:
+        return self.forward(x)
     def forward(self, *tensors: Tensor) -> Tensor:
         # Assume that the "query" tensor is given first, so we can compute the
         # residual.  This matches the signature of 'MultiHeadAttention'.
@@ -60,7 +71,7 @@ def _scaled_dot_product_attention_default_state(
     B = batch_size
     V=num_nodes
     N = sequence_len
-    Nq = sequence_len - query_index - 1 if query_index >= 0 else -query_index - 1
+    Nq = sequence_len
     Q_mem = init_fn((B, V, Nq, embed_dim_k)).float()
     K_T_mem = init_fn((B, V, embed_dim_k, N)).float()
     V_mem = init_fn((B, V, N, embed_dim_v)).float()
@@ -98,13 +109,13 @@ def _scaled_dot_product_attention_step(
     #     logger.warning("attn_mask is not supported yet and will be skipped")
     # if dropout_p != 0.0:
     #     logger.warning("dropout_p is not supported yet and will be skipped")
-
+    
     (
         Q_mem,  # (B, V, Nq, E)
         K_T_mem,  # (B, V, E, Ns)
         V_mem,  # (B, V, Ns, E)
     ) = prev_state
-
+    # print(Q_mem)
     B, V, E = q_step.shape
     q_step = q_step / math.sqrt(E)
     q_sel = (Q_mem[:B,:, 0] if Q_mem.shape[2] > 0 else q_step).unsqueeze(2).cuda()
@@ -132,13 +143,14 @@ def _scaled_dot_product_attention_step(
     else:
         Q_new = Q_mem
     new_states = (Q_new, K_T_new, V_new.detach().cpu())
+    
     return output, new_states
 
 
-class AttentionHead( nn.Module, co.CoModule):
-    def __init__(self, dim_in: int, dim_v: int, dim_k: int, kernel_size: int = 1 , stride :int =1, dropout :int=.1):
+class AttentionHead(nn.Module, co.CoModule):
+    def __init__(self, is_continual : bool, dim_in: int, dim_v: int, dim_k: int, kernel_size: int = 1 , stride :int =1, dropout :int=.1):
         super().__init__()
-        self.call_mode = "forward_steps"
+        self.call_mode = CallMode.FORWARD_STEPS if is_continual else CallMode.FORWARD
         self.embed_dim_second=False
         self.batch_first=True
         self.d_k=dim_k
@@ -149,19 +161,19 @@ class AttentionHead( nn.Module, co.CoModule):
                 dim_k,
                 kernel_size=(kernel_size, 1),
                 padding=(int((kernel_size - 1) / 2), 0),
-                stride=(stride, 1),dtype=torch.float)
+                stride=(stride, 1),dtype=torch.float).cuda()
         self.k_conv=co.Conv2d(
                 dim_in,
                 dim_k,
                 kernel_size=(kernel_size, 1),
                 padding=(int((kernel_size - 1) / 2), 0),
-                stride=(stride, 1),dtype=torch.float)
+                stride=(stride, 1),dtype=torch.float).cuda()
         self.v_conv=co.Conv2d(
                 dim_in,
                 dim_v,
                 kernel_size=(kernel_size, 1),
                 padding=(int((kernel_size - 1) / 2), 0),
-                stride=(stride, 1),dtype=torch.float)
+                stride=(stride, 1),dtype=torch.float).cuda()
 
     def get_state(self) -> Optional[State]:
         """Get model state
@@ -199,6 +211,7 @@ class AttentionHead( nn.Module, co.CoModule):
         """Clean model state"""
         if hasattr(self, "Q_mem"):
             del self.Q_mem
+        
         if hasattr(self, "K_T_mem"):
             del self.K_T_mem
         if hasattr(self, "V_mem"):
@@ -368,36 +381,42 @@ class AttentionHead( nn.Module, co.CoModule):
         K=self.k_conv(x).permute(0,3,2,1)
         V=self.v_conv(x).permute(0,3,2,1)
         return Q, K, V
-      
     def forward(self, x: Tensor) -> Tensor:
-    #   batch_size = x.size(0)
-    #   seq_length = x.size(1)
-    #   graph_size=x.size(2)
+        
+        batch_size = x.size(0)
+        seq_length = x.size(1)
+        graph_size=x.size(2)
+        
+        x=x.permute(0,3,2,1)
+        # x=x.transpose(1,2)
+        #Q, K, V=torch.split(self.qkv_conv(x), [self.d_k , self.d_k, self.d_v],
+        #                            dim=1)
+        Q=self.q_conv(x).permute(0,3,2,1)
+        K=self.k_conv(x).permute(0,3,2,1)
+        V=self.v_conv(x).permute(0,3,2,1)
 
-      # x=x.transpose(1,2)
-      #Q, K, V=torch.split(self.qkv_conv(x), [self.d_k , self.d_k, self.d_v],
-      #                            dim=1)
 
 
-
-
-
-    #   x=self.attention(Q,K,V).transpose(1,2).contiguous().view(batch_size,seq_length,graph_size, self.d_k)
-      return x
+        x=self.attention(Q,K,V).transpose(1,2).contiguous().view(batch_size,seq_length,graph_size, self.d_k)
+        
+        return x
 
 class MultiHeadAttention(co.CoModule,nn.Module):
-    def __init__(self, num_heads: int, dim_in: int,dim_k,dim_q,dim_v,dropout):
+    def __init__(self, is_continual: bool, num_heads: int, dim_in: int,dim_k,dim_q,dim_v,dropout):
         super().__init__()
-        self.call_mode = "forward_steps"
+        self.call_mode = CallMode.FORWARD_STEPS if is_continual else CallMode.FORWARD
         self.heads = nn.ModuleList(
-            [AttentionHead(dim_in, dim_v, dim_k,dropout=dropout) for _ in range(num_heads)]
+            [AttentionHead(is_continual,dim_in, dim_v, dim_k,dropout=dropout) for _ in range(num_heads)]
         )
-        self.linear = nn.Linear(num_heads * dim_k, dim_in,dtype=torch.float)
-
+        self.linear = nn.Linear(num_heads * dim_k, dim_in,dtype=torch.float).cuda()
+    def clean_state(self):
+        for h in self.heads:
+            h.clean_state()
+    
     def forward_steps(self, x: Tensor, pad_end=False, update_state=True) -> Tensor:
         out=self.linear(
             torch.cat([h.forward_steps(x) for h in self.heads], dim=-1)
-        )
+        ).cuda()
         
         return out
     def forward(self, x) -> Tensor:
@@ -405,34 +424,38 @@ class MultiHeadAttention(co.CoModule,nn.Module):
             torch.cat([h(x) for h in self.heads], dim=-1)
         )
 
-class TransformerGraphEncoderLayer(nn.Module):
+class TransformerGraphEncoderLayer(nn.Module, co.CoModule):
     def __init__(
         self,
+        is_continual:bool=False,
         dim_model: int = 128,
         num_heads: int = 8,
         dim_feedforward: int = 512,
         dropout: float = 0.1,
     ):
         super().__init__()
+        self.call_mode = CallMode.FORWARD_STEPS if is_continual else CallMode.FORWARD
         dim_v=dim_q = dim_k = max(dim_model // num_heads, 1)
         self.attention = Residual(
-            MultiHeadAttention(num_heads, dim_model,32,32,32,dropout),
+            MultiHeadAttention(is_continual,num_heads, dim_model,32,32,32,dropout),
             dimension=dim_model,
             dropout=dropout,
         )
         self.feed_forward = Residual(
-            feed_forward(dim_model, dim_feedforward),
+            FeedForward(dim_model, dim_feedforward),
             dimension=dim_model,
             dropout=dropout,
         )
-        self.norm = nn.LayerNorm(dim_model,dtype=torch.float)
+        self.norm = nn.LayerNorm(dim_model,dtype=torch.float).cuda()
+    def clean_state(self):
+        self.attention.clean_state()
     def forward(self, src: Tensor) -> Tensor:
         # print("before",torch.cuda.mem_get_info(torch.device('cuda:0')))
         src = self.attention(self.norm(src))
         # print("after",torch.cuda.mem_get_info(torch.device('cuda:0')))
         return self.feed_forward(src)
 
-class PositionalEncoder(nn.Module):
+class PositionalEncoder(nn.Module, co.CoModule):
     def __init__(self, d_model, max_seq_len = 200):
         super().__init__()
         self.d_model = d_model
@@ -450,7 +473,7 @@ class PositionalEncoder(nn.Module):
                 
         pe = pe.unsqueeze(0)
         #self.learnable_pe=nn.Linear(d_model, d_model,dtype=torch.float)
-        self.norm=nn.LayerNorm(d_model,dtype=torch.float)
+        self.norm=nn.LayerNorm(d_model,dtype=torch.float).cuda()
         self.register_buffer('pe', pe)
 
     
@@ -465,9 +488,10 @@ class PositionalEncoder(nn.Module):
         
         return x
 
-class TransformerGraphEncoder(nn.Module):
+class TransformerGraphEncoder(nn.Module, co.CoModule):
     def __init__(
         self,
+        is_continual: bool=False,
         num_layers: int = 6,
         dim_model: int = 128,
         num_heads: int = 8,
@@ -475,16 +499,23 @@ class TransformerGraphEncoder(nn.Module):
         dropout: float = 0.1,
     ):
         super().__init__()
+        self.call_mode = CallMode.FORWARD_STEPS if is_continual else CallMode.FORWARD
         self.layers = nn.ModuleList(
             [
-            TransformerGraphEncoderLayer(dim_model, num_heads, dim_feedforward, dropout)      
+            TransformerGraphEncoderLayer(is_continual,dim_model, num_heads, dim_feedforward, dropout)      
             for _ in range(num_layers)
             ]
         )
         self.positional_encoder=PositionalEncoder(dim_model)
+    def clean_state(self):
+        for layer in self.layers:
+            layer.clean_state()
+    def forward_steps(self, x: Tensor, pad_end=False, update_state=True) -> Tensor:
+        return self.forward(x)
     def forward(self, x: Tensor) -> Tensor:
         x += self.positional_encoder(x)
         for layer in self.layers:
             x = layer(x)
-
+        # if self.call_mode==CallMode.FORWARD_STEPS:
+        #     self.clean_state()
         return x

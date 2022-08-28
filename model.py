@@ -22,12 +22,12 @@ class STrGCN(pl.LightningModule):
         super(STrGCN, self).__init__()
         # not the best model...
         self.labels=labels
-        features_in=3     
-        print(num_classes)   
+        features_in=3       
         self.cnf_matrix= torch.zeros(num_classes, num_classes).cuda()
         self.Learning_Rate, self.betas, self.epsilon, self.weight_decay=optimizer_params
         self.num_classes=num_classes
         self.adjacency_matrix=adjacency_matrix.float()
+        self.is_continual=False
         self.train_acc = torchmetrics.Accuracy()
         self.valid_acc = torchmetrics.Accuracy()
         self.test_acc = torchmetrics.Accuracy()
@@ -40,14 +40,14 @@ class STrGCN(pl.LightningModule):
         self.confusion_matrix=torchmetrics.ConfusionMatrix(num_classes)
         self.gcn=SGCN(features_in,d_model,self.adjacency_matrix)
 
-        self.encoder=TransformerGraphEncoder(dropout=dropout,num_heads=n_heads,dim_model=d_model, num_layers=nEncoderlayers)
+        self.encoder=TransformerGraphEncoder(is_continual=self.is_continual,dropout=dropout,num_heads=n_heads,dim_model=d_model, num_layers=nEncoderlayers)
 
         self.out = nn.Sequential(
-            nn.Linear(d_model, d_model,dtype=torch.float),
+            nn.Linear(d_model, d_model,dtype=torch.float).cuda(),
             nn.Mish(),
             # nn.Dropout(dropout),
-            nn.LayerNorm(d_model,dtype=torch.float),
-            nn.Linear(d_model,num_classes,dtype=torch.float)
+            nn.LayerNorm(d_model,dtype=torch.float).cuda(),
+            nn.Linear(d_model,num_classes,dtype=torch.float).cuda()
           )
 
         self.d_model = d_model
@@ -85,10 +85,10 @@ class STrGCN(pl.LightningModule):
         # FDR = FP/(TP+FP)
         # # Overall accuracy
         # ACC = (TP+TN)/(TP+FP+FN+TN)
-        return torch.sum(torch.nan_to_num(FPR),dim=-1)
+        return torch.sum(torch.nan_to_num(FPR),dim=-1) 
     def forward(self, x):
         # print(x.shape)
-        x=x.type(torch.float)     
+        x=x.type(torch.float).cuda() 
         
         # print(x.shape)
         #spatial features from SGCN
@@ -212,7 +212,6 @@ class STrGCN(pl.LightningModule):
         self.cnf_matrix+=self.confusion_matrix(preds,targets)
 
     def on_test_end(self):
-        print("fuuucckkk")
         time_now=datetime.today().strftime('%Y-%m-%d_%H_%M_%S')
         self.plot_confusion_matrix(f"./Confusion_matrices/Confusion_matrix_{time_now}.eps")
 
