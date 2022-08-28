@@ -50,15 +50,15 @@ class unit_gcn(nn.Module):
                 self.out_channels,
                 kernel_size=(kernel_size, 1),
                 padding=(int((kernel_size - 1) / 2), 0),
-                stride=(stride, 1), dtype=torch.float) for i in range(self.num_A)
+                stride=(stride, 1), dtype=torch.float).cuda() for i in range(self.num_A)
         ])
 
         if mask_learning:
-            self.mask = nn.Parameter(torch.ones(A.size()))
+            self.mask = nn.Parameter(torch.ones(A.size())).cuda()
         if use_local_bn:
-            self.bn = nn.BatchNorm1d(self.out_channels * self.V)
+            self.bn = nn.BatchNorm1d(self.out_channels * self.V).cuda()
         else:
-            self.bn = nn.BatchNorm2d(self.out_channels, dtype=torch.float)
+            self.bn = nn.BatchNorm2d(self.out_channels, dtype=torch.float).cuda()
 
         self.act = nn.Mish()
 
@@ -75,7 +75,7 @@ class unit_gcn(nn.Module):
 
         # reweight adjacency matrix
         if self.mask_learning:
-            A = A*self.mask
+            A = A*self.mask.cuda()
         # graph convolution
         for i, a in enumerate(A):
 

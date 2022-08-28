@@ -1,5 +1,5 @@
 import torch
-from layers.TransformerGraphEncoder import  TransformerGraphEncoder
+from layers.continual_transformer_layers import  TransformerGraphEncoder
 from layers.SGCN import  SGCN
 import torch.nn as nn
 import pytorch_lightning as pl
@@ -22,12 +22,12 @@ class STrGCN(pl.LightningModule):
         super(STrGCN, self).__init__()
         # not the best model...
         self.labels=labels
-        features_in=3     
-        print(num_classes)   
+        features_in=3       
         self.cnf_matrix= torch.zeros(num_classes, num_classes).cuda()
         self.Learning_Rate, self.betas, self.epsilon, self.weight_decay=optimizer_params
         self.num_classes=num_classes
         self.adjacency_matrix=adjacency_matrix.float()
+        self.is_continual=False
         self.train_acc = torchmetrics.Accuracy()
         self.valid_acc = torchmetrics.Accuracy()
         self.test_acc = torchmetrics.Accuracy()
@@ -40,14 +40,14 @@ class STrGCN(pl.LightningModule):
         self.confusion_matrix=torchmetrics.ConfusionMatrix(num_classes)
         self.gcn=SGCN(features_in,d_model,self.adjacency_matrix)
 
-        self.encoder=TransformerGraphEncoder(dropout=dropout,num_heads=n_heads,dim_model=d_model, num_layers=nEncoderlayers)
+        self.encoder=TransformerGraphEncoder(is_continual=self.is_continual,dropout=dropout,num_heads=n_heads,dim_model=d_model, num_layers=nEncoderlayers)
 
         self.out = nn.Sequential(
-            nn.Linear(d_model, d_model,dtype=torch.float),
+            nn.Linear(d_model, d_model,dtype=torch.float).cuda(),
             nn.Mish(),
             # nn.Dropout(dropout),
-            nn.LayerNorm(d_model,dtype=torch.float),
-            nn.Linear(d_model,num_classes,dtype=torch.float)
+            nn.LayerNorm(d_model,dtype=torch.float).cuda(),
+            nn.Linear(d_model,num_classes,dtype=torch.float).cuda()
           )
 
         self.d_model = d_model
@@ -85,10 +85,10 @@ class STrGCN(pl.LightningModule):
         # FDR = FP/(TP+FP)
         # # Overall accuracy
         # ACC = (TP+TN)/(TP+FP+FN+TN)
-        return torch.sum(torch.nan_to_num(FPR),dim=-1)
+        return torch.sum(torch.nan_to_num(FPR),dim=-1) 
     def forward(self, x):
         # print(x.shape)
-        x=x.type(torch.float)     
+        x=x.type(torch.float).cuda() 
         
         # print(x.shape)
         #spatial features from SGCN
@@ -148,9 +148,11 @@ class STrGCN(pl.LightningModule):
         
         self.log('train_loss', loss,on_epoch=True,on_step=True)
         self.log('train_acc', self.train_acc.compute(), prog_bar=True, on_step=True, on_epoch=True)
+
         # self.log('train_F1_score', self.train_f1_score.compute(), prog_bar=True, on_step=True, on_epoch=True)
         # self.log('train_Jaccard', self.train_jaccard(y_hat, y), prog_bar=True, on_step=True, on_epoch=True)
         # self.log('train_FP_rate', self.get_fp_rate(torch.argmax(torch.nn.functional.softmax(y_hat, dim=-1), dim=-1), y), prog_bar=True, on_step=True, on_epoch=True)
+
         return loss
 
     def validation_step(self, batch, batch_nb):
@@ -170,9 +172,11 @@ class STrGCN(pl.LightningModule):
         
         self.log('val_loss', loss, prog_bar=True,on_epoch=True,on_step=True)
         self.log('val_accuracy', self.valid_acc.compute(), prog_bar=True, on_step=True, on_epoch=True)
+
         # self.log('val_F1_score', self.val_f1_score.compute(), prog_bar=True, on_step=True, on_epoch=True)
         # self.log('val_Jaccard', self.val_jaccard(y_hat, y), prog_bar=True, on_step=True, on_epoch=True)
         # self.log('val_FP_rate', self.get_fp_rate(torch.argmax(torch.nn.functional.softmax(y_hat, dim=-1), dim=-1), y), prog_bar=True, on_step=True, on_epoch=True)
+
 
     def training_epoch_end(self, outputs):
         #for name,p in self.named_parameters() :
@@ -199,9 +203,11 @@ class STrGCN(pl.LightningModule):
         loss = F.cross_entropy(y_hat, targets)        
         self.log('test_loss', loss, prog_bar=True)
         self.log('test_accuracy', self.test_acc.compute(), prog_bar=True)
+
         # self.log('test_F1_score', self.val_f1_score.compute(), prog_bar=True)
         # self.log('test_Jaccard', self.test_jaccard(y_hat, y), prog_bar=True, on_step=True, on_epoch=True)
         # self.log('test_FP_rate', self.get_fp_rate(torch.argmax(torch.nn.functional.softmax(y_hat, dim=-1), dim=-1), y), prog_bar=True, on_step=True, on_epoch=True)
+
         
         self.cnf_matrix+=self.confusion_matrix(preds,targets)
 
