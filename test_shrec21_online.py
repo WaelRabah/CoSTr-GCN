@@ -40,7 +40,7 @@ batch_size = 32
 workers = 4
 lr = 1e-4
 num_classes = 18
-window_size=20
+window_size=30
 input_shape = (window_size,20,3)
 device = torch.device('cuda')
 d_model=128
@@ -77,7 +77,7 @@ def compute_energy(x):
             w+=w_v
     return w
 def init_data_loader():
-    train_loader, val_loader, test_loader, graph= load_data_sets()
+    train_loader, val_loader, test_loader, graph= load_data_sets(is_segmented=False)
 
 
     return train_loader, val_loader, test_loader, graph
@@ -104,8 +104,8 @@ def get_fp_rate(score,labels):
 
 
     cnf_matrix = confusion_matrix(score.detach().cpu(), labels.detach().cpu())
-    FP = cnf_matrix.sum(axis=0) - np.diag(cnf_matrix)
-    FN = cnf_matrix.sum(axis=1) - np.diag(cnf_matrix)
+    FP = cnf_matrix.sum(axis=1) - np.diag(cnf_matrix)
+    FN = cnf_matrix.sum(axis=0) - np.diag(cnf_matrix)
     TP = np.diag(cnf_matrix)
     TN = cnf_matrix.sum() - (FP + FN + TP)
 
@@ -170,7 +170,7 @@ if __name__ == "__main__":
 
     # .........inital model
     print("\n loading model.............")
-    model = model = STrGCN.load_from_checkpoint(checkpoint_path="./models/STRGCN-SHREC17_2022-08-27_10_11_10/best_model-128-8-v1.ckpt",adjacency_matrix=graph, optimizer_params=optimizer_params, labels=labels, d_model=128,n_heads=8,num_classes=num_classes, dropout=dropout_rate)
+    model = model = STrGCN.load_from_checkpoint(checkpoint_path="./models/STRGCN-SHREC17_2022-08-29_09_52_26/best_model-128-8-v1.ckpt",adjacency_matrix=graph, optimizer_params=optimizer_params, labels=labels, d_model=128,n_heads=8,num_classes=num_classes, dropout=dropout_rate)
     # model_solver = optim.Adam(filter(lambda p: p.requires_grad, model.parameters()), lr=lr)
 
     # # ........set loss
@@ -186,6 +186,7 @@ if __name__ == "__main__":
     f1_score=torchmetrics.F1Score(num_classes=num_classes)
     # It says IoU but in fact IoU and Jaccard index have the same formula
     jaccard = torchmetrics.JaccardIndex(num_classes=num_classes)
+    avg_precision = torchmetrics.AveragePrecision(num_classes=num_classes)
     eps=1e-1
     # ***********training#***********
     # for epoch in tqdm(range(epochs)):
@@ -214,29 +215,7 @@ if __name__ == "__main__":
             
     #         score_list = None
     #         label_list = None
-    #         # current_skeletons_window = x[:,w*window_size: (w+1)*window_size].clone()
-    #         # print(w)
-    #         # if w < 2 :
-    #         #     continue
-    #         # skeletons_window_i_m_2 = x[:,(w-2)*window_size: (w-1)*window_size].clone()
-    #         # skeletons_window_i_m_1 = x[:,(w-1)*window_size: w*window_size].clone()
-    #         # skeletons_window_i = x[:,w*window_size: (w+1)*window_size].clone()
-    #         # skeletons_window_i_p_1 = x[:,(w+1)*window_size: (w+2)*window_size].clone()
-    #         # skeletons_window_i_p_1 = x[:,(w+2)*window_size: (w+3)*window_size].clone()
 
-    #         # w_1=compute_energy(skeletons_window_i_m_2)
-            
-    #         # w_2=compute_energy(skeletons_window_i_m_1)
-    #         # w_3=compute_energy(skeletons_window_i)
-    #         # w_4=compute_energy(skeletons_window_i_p_1)
-    #         # w_5=compute_energy(skeletons_window_i_p_1)
-    #         # d_wi=(w_4-w_2)/((w+1)-(w-1))
-    #         # d_wi_m_1=(w_3-w_1)/((w)-(w-2))
-    #         # d_wi_p_1=(w_5-w_3)/((w+2)-(w))
-
-    #         # if d_wi < eps and d_wi_m_1 > 0 and d_wi_p_1 < 0 :
-    #         #     print("helle")
-    #         # print(current_skeletons_window.shape)
     #     # for t in tqdm(range(T), leave=False):
     #     #     current_skeleton = x[:, :, t].clone().unsqueeze(2)
     #         score = model(x)
@@ -292,6 +271,7 @@ if __name__ == "__main__":
         val_f1 = 0
         val_jaccard=0
         val_fp_rate=0
+        val_avg_precision=0
         score_list = None
         label_list = None
         acc_sum = 0
@@ -299,6 +279,7 @@ if __name__ == "__main__":
         val_loss_epoch = 0
         val_jaccard_epoch=0
         val_fp_rate_epoch=0
+        val_avg_precision_epoch=0
         val_f1_epoch = 0
         for i, batch in tqdm(enumerate(test_loader), leave=False):
             # print("batch=",i)
@@ -327,6 +308,25 @@ if __name__ == "__main__":
                 # for t in tqdm(range(T), leave=False):
                 #     current_skeleton = x[:, :, t].clone().unsqueeze(2)
                     # print(w)
+                window = x[:,t: t+window_size].clone()
+                # if t < 2*stride :
+                #     continue
+                # window_i_m_2 = x[:,(t-2*stride): (t-2*stride)+window_size].clone()
+                # window_i_m_1 = x[:,(t-1*stride):(t-1*stride)+window_size ].clone()
+                # window_i = x[:,t: t+window_size].clone()
+                # window_i_p_1 = x[:,t+1*stride: t+1*stride+window_size].clone()
+                # window_i_p_2 = x[:,t+2*stride: (t+2*stride)+window_size].clone()
+
+                # w_1=compute_energy(window_i_m_2)
+                
+                # w_2=compute_energy(window_i_m_1)
+                # w_3=compute_energy(window_i)
+                # w_4=compute_energy(window_i_p_1)
+                # w_5=compute_energy(window_i_p_2)
+                # d_wi=(w_4-w_2)/((t+1*stride)-(t-1*stride))
+                # d_wi_m_1=(w_3-w_1)/(t-(t-2*stride))
+                # d_wi_p_1=(w_5-w_3)/((t+2*stride)-t)
+                # if d_wi < eps and d_wi_m_1 > 0 and d_wi_p_1 < 0 :
                 score = model(window)
                 # preds.append((pred, ))
                 # input()
@@ -354,29 +354,33 @@ if __name__ == "__main__":
             val_f1_step= f1_score(score_list_labels.detach().cpu(), label_list.detach().cpu())
             val_jaccard_step= jaccard(score_list_labels.detach().cpu(), label_list.detach().cpu())
             val_fp_rate_step= get_fp_rate(score_list_labels.detach().cpu(), label_list.detach().cpu())
+            val_avg_precision_step=avg_precision(score_list.detach().cpu(), label_list.detach().cpu())
             val_f1_epoch += val_f1_step
             val_jaccard_epoch += val_jaccard_step
             val_fp_rate_epoch += val_fp_rate_step
+            val_avg_precision_epoch+=val_avg_precision_step
             val_loss += loss
             print("*** SHREC  21"
                 "val_loss_step: %.6f,"
                 "val_F1_step: %.6f ***,"
                 "val_jaccard_step: %.6f ***"
                 "val_fp_rate_step: %.6f ***"
-                % ( loss, val_f1_step,val_jaccard_step, val_fp_rate_step))
-            if i>10 :
-                break
+                "val_avg_precision_step: %.6f ***"
+                % ( loss, val_f1_step,val_jaccard_step, val_fp_rate_step,val_avg_precision_step))
+
         # print((val_loss, val_f1_epoch,val_jaccard_epoch, val_fp_rate_epoch),float(i+1))
         val_loss = val_loss / (float(i + 1))
         val_f1 = val_f1_epoch.item() / (float(i + 1))
         val_jaccard = val_jaccard_epoch / (float(i + 1))
         val_fp_rate = val_fp_rate_epoch / (float(i + 1))
+        val_avg_precision = val_avg_precision_epoch / (float(i + 1))
         print("*** SHREC 21, "
                 "val_loss: %.6f,"
                 "val_F1: %.6f ***,"
                 "val_jaccard: %.6f ***"
                 "val_fp_rate: %.6f ***"
-                % (val_loss, val_f1,val_jaccard, val_fp_rate))
+                "val_avg_precision_rate: %.6f ***"
+                % (val_loss, val_f1,val_jaccard, val_fp_rate, val_avg_precision))
 
         # # save best model
         # if val_f1 > max_f1:

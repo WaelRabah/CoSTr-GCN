@@ -100,7 +100,7 @@ def train_model(dataset_name="SHREC17"):
     torch.autograd.set_detect_anomaly(True)
     torch.cuda.manual_seed(42)
     def init_data_loader():
-        train_loader, val_loader, test_loader, graph= load_data_sets(window_size=window_size,batch_size=batch_size,workers=workers)
+        train_loader, val_loader, test_loader, graph= load_data_sets(window_size=window_size,batch_size=batch_size,workers=workers,is_segmented=True)
 
 
         return train_loader, test_loader, val_loader, graph

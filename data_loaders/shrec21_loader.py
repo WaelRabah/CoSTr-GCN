@@ -2,7 +2,6 @@ import torch
 import numpy as np
 from torch.utils.data import Dataset
 from tqdm import tqdm
-from random import shuffle
 import random
 import torch.nn.functional as F
 
@@ -673,9 +672,9 @@ class GraphDataset(Dataset):
                   "has", data_dict[class_label], "samples")
 
     def sample_no_gesture_class(self):
-        shuffle(self.ng_sequences_data)
+        random.Random(4).shuffle(self.ng_sequences_data)
         print(len(self.ng_sequences_data))
-        samples = self.ng_sequences_data[:self.number_of_samples_per_class]
+        samples = self.ng_sequences_data[:self.number_of_samples_per_class+self.nb_sub_sequences if self.use_aug_by_sw else 0]
 
         self.data = [*self.data, *samples]
 
@@ -806,7 +805,7 @@ class GraphDataset(Dataset):
             high = -low
             # select 4 joints
             all_joint = list(range(self.compoent_num))
-            shuffle(all_joint)
+            random.Random(4).shuffle(all_joint)
             selected_joint = all_joint[0:4]
             for j_id in selected_joint:
                 noise_offset = np.random.uniform(low, high, 3)
@@ -977,10 +976,10 @@ class GraphDataset(Dataset):
 
 
 
-def load_data_sets(window_size=10, batch_size=32, workers=4):
+def load_data_sets(window_size=10, batch_size=32, workers=4, is_segmented=False):
 
     train_ds = GraphDataset("./data/SHREC21", "training", window_size=window_size,
-                            use_data_aug=True,
+                            use_data_aug=False,
                             normalize=False,
                             scaleInvariance=False,
                             translationInvariance=False,
@@ -992,10 +991,10 @@ def load_data_sets(window_size=10, batch_size=32, workers=4):
                             useNoise=True,
                             useScaleAug=False,
                             useTranslationAug=False,
-                            use_aug_by_sw=True,
-                            sample_classes=True,
+                            use_aug_by_sw=False,
+                            sample_classes=False,
                             number_of_samples_per_class=23,
-                            is_segmented=True
+                            is_segmented=is_segmented
                             )
     test_ds = GraphDataset("./data/SHREC21", "test",
                            window_size=window_size,
@@ -1007,7 +1006,7 @@ def load_data_sets(window_size=10, batch_size=32, workers=4):
                            number_of_samples_per_class=14,
                            use_aug_by_sw=False,
                            sample_classes=False,
-                           is_segmented=True)
+                           is_segmented=is_segmented)
     graph = Graph(layout="SHREC21", strategy="distance")
     print("train data num: ", len(train_ds))
     print("test data num: ", len(test_ds))
