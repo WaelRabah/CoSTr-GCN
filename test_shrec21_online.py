@@ -8,6 +8,7 @@ import continual as co
 from model import STrGCN
 from data_loaders.shrec21_loader import load_data_sets
 import torchmetrics
+import json
 # from sklearn.metrics import confusion_matrix
 labels = [
     "",
@@ -40,7 +41,7 @@ batch_size = 32
 workers = 4
 lr = 1e-4
 num_classes = 18
-window_size=30
+window_size=10
 input_shape = (window_size,20,3)
 device = torch.device('cuda')
 d_model=128
@@ -53,8 +54,8 @@ optimizer_params=(lr,betas,epsilon,weight_decay)
 Max_Epochs = 500
 Early_Stopping = 25
 dropout_rate=.3
-num_classes=18
-stride=5
+num_classes=2
+stride=1
 def compute_energy(x):
     N, T, V, C = x.shape
 
@@ -77,7 +78,7 @@ def compute_energy(x):
             w+=w_v
     return w
 def init_data_loader():
-    train_loader, val_loader, test_loader, graph= load_data_sets(is_segmented=False)
+    train_loader, val_loader, test_loader, graph= load_data_sets(is_segmented=False,binary_classes=True)
 
 
     return train_loader, val_loader, test_loader, graph
@@ -154,23 +155,10 @@ if __name__ == "__main__":
     train_loader, val_loader, test_loader, graph = init_data_loader()
 
 
-    # for i, batch in tqdm(enumerate(train_loader), leave=False):
-    #     print(i,batch[0].shape)
-        
-
-
-
-    # for i, batch in tqdm(enumerate(val_loader), leave=False):
-    #     print(i,batch[0].shape)
-
-    # for i, batch in tqdm(enumerate(test_loader), leave=False):
-    #     x,y,index=batch
-    #     y=torch.stack(y)
-        # print(i,batch[0].shape)
 
     # .........inital model
     print("\n loading model.............")
-    model = model = STrGCN.load_from_checkpoint(checkpoint_path="./models/STRGCN-SHREC17_2022-08-29_09_52_26/best_model-128-8-v1.ckpt",adjacency_matrix=graph, optimizer_params=optimizer_params, labels=labels, d_model=128,n_heads=8,num_classes=num_classes, dropout=dropout_rate)
+    model = model = STrGCN.load_from_checkpoint(checkpoint_path="./models/STRGCN-SHREC21_Gesture_No_Gesture_Module/best_model-128-8-v1.ckpt",adjacency_matrix=graph, optimizer_params=optimizer_params, labels=labels, d_model=128,n_heads=8,num_classes=num_classes, dropout=dropout_rate)
     # model_solver = optim.Adam(filter(lambda p: p.requires_grad, model.parameters()), lr=lr)
 
     # # ........set loss
@@ -179,93 +167,17 @@ if __name__ == "__main__":
 
 
     # parameters recording training log
-    max_f1 = 0
-    no_improve_epoch = 0
 
-    epochs = 100
+
     f1_score=torchmetrics.F1Score(num_classes=num_classes)
-    # It says IoU but in fact IoU and Jaccard index have the same formula
+
     jaccard = torchmetrics.JaccardIndex(num_classes=num_classes)
     avg_precision = torchmetrics.AveragePrecision(num_classes=num_classes)
     eps=1e-1
-    # ***********training#***********
-    # for epoch in tqdm(range(epochs)):
-        # print("\testing.............")
-        # model.train()
     start_time = time.time()
-        # train_F1 = 0
-        # train_jaccard = 0
-        # train_fp_rate = 0
-        # train_loss = 0
-
-    #     print("Epoch=", epoch)
-    #     for i, batch in tqdm(enumerate(train_loader), leave=False):
-    #         # print("batch=",i)
-    #         # print("training i:",i)
-    #         x, target = batch[0], batch[1]
-
-    #         N, T, V, C = x.shape
-    #         # target = torch.stack([torch.stack([target[j][i] for j in range(T)]) for i in range(N)])
-    #         # x = x.permute(0, 3, 1, 2)
-    #         preds = []
-    #         acc_sum = .0
-    #         loss_sum = .0
-    #         num_windows= T // window_size
-
-            
-    #         score_list = None
-    #         label_list = None
-
-    #     # for t in tqdm(range(T), leave=False):
-    #     #     current_skeleton = x[:, :, t].clone().unsqueeze(2)
-    #         score = model(x)
-    #         # preds.append((pred, ))
-
-    #         # label = target[:, w*window_size: (w+1)*window_size].cuda()
-    #         # label = get_window_label(label)
-    #         # label = torch.autograd.Variable(label, requires_grad=False)
-    #         # print(score.shape, label.shape)
-
-
-    #         # for n,p in model.named_parameters():
-    #         #     if n=="module.encoder.layers.0.attention.sublayer.heads.0.q_conv.weight":
-    #         #         print(p)
-    #         # input()
-
-
-    #         if score_list is None:
-    #             score_list = score
-    #             label_list = target
-    #         else:
-    #             score_list = torch.cat((score_list, score), 0)
-    #             label_list = torch.cat((label_list, target), 0)
-    #         # acc_sum += acc
-    #         loss = criterion(score_list, label_list)
-    #         score_list_labels= torch.argmax(torch.nn.functional.softmax(score_list, dim=-1), dim=-1)
-    #         train_F1 += f1_score(score_list_labels.detach().cpu(),label_list.detach().cpu())
-    #         train_jaccard += jaccard(score_list_labels.detach().cpu(), label_list.detach().cpu())
-    #         train_fp_rate+=get_fp_rate(score_list_labels, label_list)
-    #         train_loss += loss
-    #         # train_loss_summed=torch.sum(train_loss)
-
-    #         model_solver.zero_grad(set_to_none=True)
-    #         loss.backward()
-    #         # clip_grad_norm_(model.parameters(), 0.1)
-    #         model_solver.step()
-
-    #     train_F1 /= float(i + 1) * num_windows
-    #     train_loss /= float(i + 1) * num_windows
-    #     train_jaccard /= float(i + 1) * num_windows
-    #     train_fp_rate /= float(i + 1) * num_windows
-    #     # print(train_fp_rate)
-    #     print("*** SHREC  Epoch: [%2d] time: %4.4f, "
-    #           "cls_loss: %.4f  train_F1: %.6f train_jaccard %.6f train_fp_rate %.6f ***"
-    #           % (epoch + 1, time.time() - start_time,
-    #              train_loss.data, train_F1,train_jaccard, train_fp_rate))
-    #     start_time = time.time()
-
     #         # ***********evaluation***********
     print("*"*10,"Testing","*"*10)
+    results=[]
     with torch.no_grad():
         val_loss = 0
         val_f1 = 0
@@ -283,12 +195,10 @@ if __name__ == "__main__":
         val_f1_epoch = 0
         for i, batch in tqdm(enumerate(test_loader), leave=False):
             # print("batch=",i)
-            # print("training i:",i)
             x,y,index=batch
             y=torch.stack(y)
             N, T, V, C = x.shape
-            # target = torch.stack([torch.stack([target[j][i] for j in range(T)]) for i in range(N)])
-            # x = x.permute(0, 3, 1, 2)
+
 
 
 
@@ -299,15 +209,10 @@ if __name__ == "__main__":
             for t in tqdm(range(0,T-window_size+1,stride), leave=False):
                 # print(i)
                 window=x[:,t:t+window_size]
-                # print(window.shape)
-                label=get_window_label(y[t:t+window_size])
-                # print(window)
-                # print(label)
-                # input()
-                # print(current_skeletons_window.shape)
-                # for t in tqdm(range(T), leave=False):
-                #     current_skeleton = x[:, :, t].clone().unsqueeze(2)
-                    # print(w)
+                label_l=y[t:t+window_size]
+                # print(label_l)
+                label=get_window_label(label_l)
+
                 window = x[:,t: t+window_size].clone()
                 # if t < 2*stride :
                 #     continue
@@ -328,12 +233,12 @@ if __name__ == "__main__":
                 # d_wi_p_1=(w_5-w_3)/((t+2*stride)-t)
                 # if d_wi < eps and d_wi_m_1 > 0 and d_wi_p_1 < 0 :
                 score = model(window)
-                # preds.append((pred, ))
-                # input()
-                # label = target[:, w*window_size: (w+1)*window_size].cuda()
-                # label = get_window_label(label)
-                # label = torch.autograd.Variable(label, requires_grad=False)
-                # print(score.shape, label.shape)
+
+                score_list_labels= torch.argmax(torch.nn.functional.softmax(score, dim=-1), dim=-1)
+                results.append({
+                    "prediction":score_list_labels.item(),
+                    "label":label.item(),
+                })
 
                 if score_list is None:
                     score_list = score
@@ -341,14 +246,8 @@ if __name__ == "__main__":
                 else:
                     score_list = torch.cat((score_list, score), 0)
                     label_list = torch.cat((label_list, label), 0)
-                
 
-                # acc_sum += acc
-                # print(current_skeletons_window)
-                # print(score_list)
-                # print(label_list)
-                # input()
-                # input()
+
             loss = criterion(score_list.detach().cpu(), label_list.detach().cpu())
             score_list_labels= torch.argmax(torch.nn.functional.softmax(score_list, dim=-1), dim=-1)
             val_f1_step= f1_score(score_list_labels.detach().cpu(), label_list.detach().cpu())
@@ -367,8 +266,8 @@ if __name__ == "__main__":
                 "val_fp_rate_step: %.6f ***"
                 "val_avg_precision_step: %.6f ***"
                 % ( loss, val_f1_step,val_jaccard_step, val_fp_rate_step,val_avg_precision_step))
-
-        # print((val_loss, val_f1_epoch,val_jaccard_epoch, val_fp_rate_epoch),float(i+1))
+        with open('results_continual.json',mode="w") as f:
+            json.dump(results,f,indent=2)
         val_loss = val_loss / (float(i + 1))
         val_f1 = val_f1_epoch.item() / (float(i + 1))
         val_jaccard = val_jaccard_epoch / (float(i + 1))
@@ -382,19 +281,4 @@ if __name__ == "__main__":
                 "val_avg_precision_rate: %.6f ***"
                 % (val_loss, val_f1,val_jaccard, val_fp_rate, val_avg_precision))
 
-        # # save best model
-        # if val_f1 > max_f1:
-        #     max_f1 = val_f1
-        #     no_improve_epoch = 0
-        #     val_f1 = round(val_f1, 10)
 
-        #     torch.save(model.state_dict(),
-        #                 '{}/epoch_{}_acc_{}.pth'.format(model_fold, "testing", val_f1))
-        #     print("performance improve, saved the new model......best F1 score: {}".format(max_f1))
-        # else:
-        #     no_improve_epoch += 1
-        #     print("no_improve_epoch: {} best score {}".format(no_improve_epoch, max_f1))
-
-        # if no_improve_epoch > 10:
-        #     print("stop training....")
-        #     break

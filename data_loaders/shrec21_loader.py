@@ -56,7 +56,7 @@ class Graph():
 
     def get_edge(self, layout):
         if layout == 'DHG14/28':
-            self.num_node = 22
+            self.num_node = 20
             self_link = [(i, i) for i in range(self.num_node)]
             neighbor_link = [(0, 1),
                              (0, 2),
@@ -255,7 +255,7 @@ class Graph():
 
 
 num_joint = 20
-max_frame = 2500
+max_frame = 1500
 
 
 class Feeder_SHREC21(Dataset):
@@ -271,7 +271,8 @@ class Feeder_SHREC21(Dataset):
             set_name="training",
             window_size=10,
             aug_by_sw=False,
-            is_segmented=False
+            is_segmented=False,
+            binary_classes=False
     ):
         self.data_path = data_path
         self.set_name = set_name
@@ -299,6 +300,7 @@ class Feeder_SHREC21(Dataset):
         self.window_size = window_size
         self.aug_by_sw = aug_by_sw
         self.is_segmented = is_segmented
+        self.binary_classes=binary_classes
         self.load_data()
 
     def load_data(self):
@@ -410,8 +412,9 @@ class Feeder_SHREC21(Dataset):
 
             frames = [f for f, l in labeled_sequence]
             # print(len(self.classes))
-            labels_per_frame = [self.class_to_idx[l]
+            labels_per_frame = [ (1 if self.class_to_idx[l]!=0 else 0)  if self.binary_classes else self.class_to_idx[l]
                                 for f, l in labeled_sequence]
+            
             gestures = []
             windows_sub_sequences_per_gesture = {
                 i: [] for i in range(len(self.classes))}
@@ -476,8 +479,8 @@ class Feeder_SHREC21(Dataset):
 
             frames = [f for f, l in labeled_sequence]
 
-            labels_per_frame = [self.classes.index(
-                l) for f, l in labeled_sequence]
+            labels_per_frame = [ (1 if self.class_to_idx[l]!=0 else 0)  if self.binary_classes else self.class_to_idx[l]
+                                for f, l in labeled_sequence]
             return labeled_sequence, np.array(frames), labels_per_frame
         seq_idx, gesture_infos = self.dataset[index]
 
@@ -502,14 +505,16 @@ def gendata(
         max_frame,
         window_size=20,
         aug_by_sw=False,
-        is_segmented=False
+        is_segmented=False,
+        binary_classes=False
 ):
     feeder = Feeder_SHREC21(
         data_path=data_path,
         set_name=set_name,
         window_size=window_size,
         aug_by_sw=aug_by_sw,
-        is_segmented=is_segmented
+        is_segmented=is_segmented,
+        binary_classes=binary_classes
     )
     dataset = feeder.dataset
     if is_segmented:
@@ -562,7 +567,8 @@ class GraphDataset(Dataset):
         nb_sub_sequences=10,
         sample_classes=False,
         is_segmented=False,
-        number_of_samples_per_class=0
+        number_of_samples_per_class=0,
+        binary_classes=False
     ):
         """Initialise a Graph dataset
         """
@@ -588,7 +594,8 @@ class GraphDataset(Dataset):
         self.is_segmented = is_segmented
         self.nb_sub_sequences=nb_sub_sequences
         self.sample_classes_=sample_classes
-        self.classes = ["No gesture",
+        self.binary_classes=binary_classes
+        self.classes = ["NO GESTURE", "GESTURE"] if binary_classes else ["No gesture",
                         "RIGHT",
                         "KNOB",
                         "CROSS",
@@ -627,11 +634,13 @@ class GraphDataset(Dataset):
                 max_frame,
                 self.window_size,
                 self.use_aug_by_sw,
-                self.is_segmented
+                self.is_segmented,
+                self.binary_classes
             )
             self.sample_no_gesture_class()
             print("Number of gestures per class in the original "+self.set_name+" set :")
             self.print_classes_information()
+            print(self.set_name)
             data = []
             for idx, data_el in enumerate(self.data):
                 if np.array(data_el[0]).shape[0] > 0:
@@ -660,7 +669,8 @@ class GraphDataset(Dataset):
                 max_frame,
                 self.window_size,
                 self.use_aug_by_sw,
-                self.is_segmented
+                self.is_segmented,
+                self.binary_classes
             )
 
     def print_classes_information(self):
@@ -674,7 +684,7 @@ class GraphDataset(Dataset):
     def sample_no_gesture_class(self):
         random.Random(4).shuffle(self.ng_sequences_data)
         print(len(self.ng_sequences_data))
-        samples = self.ng_sequences_data[:self.number_of_samples_per_class+self.nb_sub_sequences if self.use_aug_by_sw else 0]
+        samples =self.ng_sequences_data[:len(self.data)] if self.binary_classes else self.ng_sequences_data[:self.number_of_samples_per_class*2+(self.nb_sub_sequences if self.use_aug_by_sw else 0)]
 
         self.data = [*self.data, *samples]
 
@@ -976,7 +986,7 @@ class GraphDataset(Dataset):
 
 
 
-def load_data_sets(window_size=10, batch_size=32, workers=4, is_segmented=False):
+def load_data_sets(window_size=10, batch_size=32, workers=4, is_segmented=False, binary_classes=False):
 
     train_ds = GraphDataset("./data/SHREC21", "training", window_size=window_size,
                             use_data_aug=False,
@@ -994,7 +1004,7 @@ def load_data_sets(window_size=10, batch_size=32, workers=4, is_segmented=False)
                             use_aug_by_sw=False,
                             sample_classes=False,
                             number_of_samples_per_class=23,
-                            is_segmented=is_segmented
+                            is_segmented=is_segmented, binary_classes=binary_classes
                             )
     test_ds = GraphDataset("./data/SHREC21", "test",
                            window_size=window_size,
@@ -1006,11 +1016,10 @@ def load_data_sets(window_size=10, batch_size=32, workers=4, is_segmented=False)
                            number_of_samples_per_class=14,
                            use_aug_by_sw=False,
                            sample_classes=False,
-                           is_segmented=is_segmented)
+                           is_segmented=is_segmented, binary_classes=binary_classes)
     graph = Graph(layout="SHREC21", strategy="distance")
     print("train data num: ", len(train_ds))
     print("test data num: ", len(test_ds))
-
     train_loader = torch.utils.data.DataLoader(
         train_ds,
         batch_size=batch_size, shuffle=True,
@@ -1018,11 +1027,11 @@ def load_data_sets(window_size=10, batch_size=32, workers=4, is_segmented=False)
 
     val_loader = torch.utils.data.DataLoader(
         test_ds,
-        batch_size=batch_size, shuffle=True,
+        batch_size=batch_size, shuffle=False,
         num_workers=workers, pin_memory=False)
     test_loader = torch.utils.data.DataLoader(
         test_ds,
-        batch_size=1, shuffle=True,
+        batch_size=1, shuffle=False,
         num_workers=workers, pin_memory=False)
 
     return train_loader, val_loader, test_loader, torch.from_numpy(graph.A)
