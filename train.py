@@ -94,13 +94,16 @@ def train_model(dataset_name="SHREC17"):
     # loading data
     batch_size = 32
     workers = 4
-    window_size = 30
+    window_size = 50
+    is_gesture_nogesture_model=True
+    num_classes= 2 if is_gesture_nogesture_model else 18
+    
     # data_cfg = 0
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     torch.autograd.set_detect_anomaly(True)
     torch.cuda.manual_seed(42)
     def init_data_loader():
-        train_loader, val_loader, test_loader, graph= load_data_sets(window_size=window_size,batch_size=batch_size,workers=workers)
+        train_loader, val_loader, test_loader, graph= load_data_sets(window_size=window_size,batch_size=batch_size,workers=workers,is_segmented=True, binary_classes=is_gesture_nogesture_model)
 
 
         return train_loader, test_loader, val_loader, graph
@@ -137,7 +140,6 @@ def train_model(dataset_name="SHREC17"):
     Max_Epochs = 500
     Early_Stopping = 25
     dropout_rate=.3
-    num_classes=18
 
 
     time_now=datetime.today().strftime('%Y-%m-%d_%H_%M_%S')
