@@ -4,7 +4,7 @@ from tqdm import tqdm
 import time
 import os
 from model import CoSTrGCN
-from data_loaders.shrec21_loader import load_data_sets
+from data_loaders.data_loader import load_data_sets
 import torchmetrics
 import json
 
@@ -267,7 +267,7 @@ if __name__ == "__main__":
                 "val_fp_rate_step: %.6f ***"
                 "val_avg_precision_step: %.6f ***"
                 % ( loss, val_f1_step,val_jaccard_step, val_fp_rate_step,val_avg_precision_step))
-        with open('results_continual.json',mode="w") as f:
+        with open('results_analysis.json',mode="w") as f:
             json.dump(results,f,indent=2)
         val_loss = val_loss / (float(i + 1))
         val_f1 = val_f1_epoch.item() / (float(i + 1))
