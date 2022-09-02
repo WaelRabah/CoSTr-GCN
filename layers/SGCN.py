@@ -4,11 +4,17 @@ from torch import Tensor
 import continual as co
 
 def conv_init(conv):
+    '''
+    Initializes the weights of the convolutions of the graph convolution
+    '''
     nn.init.kaiming_normal_(conv.weight, mode='fan_out')
     nn.init.constant_(conv.bias, 0)
 
 
 class unit_gcn(nn.Module):
+    '''
+    Applies the graph convolution operation, takes the input_size, output_size and adjacency matrix as arguments
+    '''
     def __init__(self,
                  in_channels,
                  out_channels,
@@ -22,10 +28,6 @@ class unit_gcn(nn.Module):
         # ==========================================
         # number of nodes
         self.V = 20
-
-        # the adjacency matrixes of the graph
-        # self.A = Variable(
-        #     A.clone(), requires_grad=False).view(-1, self.V, self.V)
 
         # number of input channels
         self.in_channels = in_channels
@@ -106,10 +108,7 @@ class SGCN(nn.Module):
     def __init__(self, features_in, features_out, A) -> None:
         super().__init__()
         default_backbone = [(features_in, 64, 1), (64, 64, 1), (64, 64, 1), (64, 64, 1), (64, features_out, 2), (features_out, features_out, 1),(features_out, features_out, 1)]
-        # , (128, 256, 2), (256, 256, 1), (256, 256, 1) , (256, 512, 2), (512, 512, 1), (512, 512, 1)
-        # default_backbone = [(3,128,1)]
         self.conv_layers = nn.ModuleList([
-            # unit_agcn(dim_in, dim_out, A)
             unit_gcn(dim_in, dim_out, A, mask_learning=True)
             for dim_in, dim_out, kernel_size in default_backbone
         ])

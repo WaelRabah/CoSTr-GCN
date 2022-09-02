@@ -1,17 +1,15 @@
 import torch
-import torch.optim as optim
 import numpy as np
 from tqdm import tqdm
 import time
 import os
-import continual as co
-from model import STrGCN
+from model import CoSTrGCN
 from data_loaders.shrec21_loader import load_data_sets
 import torchmetrics
 import json
-# from sklearn.metrics import confusion_matrix
+
 labels = [
-    "",
+    "NO GESTURE",
     "RIGHT",
     "KNOB",
     "CROSS",
@@ -85,7 +83,7 @@ def init_data_loader():
 
 
 def init_model(graph, optimizer_params, labels,num_classes,dropout_rate=.1):
-    model = STrGCN(graph, optimizer_params, labels, d_model=128,n_heads=8,num_classes=num_classes, dropout=dropout_rate)
+    model = CoSTrGCN(graph, optimizer_params, labels, d_model=128,n_heads=8,num_classes=num_classes, dropout=dropout_rate)
     
 
     return model
@@ -158,7 +156,7 @@ if __name__ == "__main__":
 
     # .........inital model
     print("\n loading model.............")
-    model = model = STrGCN.load_from_checkpoint(checkpoint_path="./models/STRGCN-SHREC21_Gesture_No_Gesture_Module/best_model-128-8-v1.ckpt",adjacency_matrix=graph, optimizer_params=optimizer_params, labels=labels, d_model=128,n_heads=8,num_classes=num_classes, dropout=dropout_rate)
+    model = model = CoSTrGCN.load_from_checkpoint(checkpoint_path="./models/CoSTrGCN-SHREC21_Gesture_No_Gesture_Module/best_model-128-8-v1.ckpt",adjacency_matrix=graph, optimizer_params=optimizer_params, labels=labels, d_model=128,n_heads=8,num_classes=num_classes, dropout=dropout_rate)
     # model_solver = optim.Adam(filter(lambda p: p.requires_grad, model.parameters()), lr=lr)
 
     # # ........set loss

@@ -36,6 +36,9 @@ class FeedForward(nn.Module, co.CoModule):
     def forward(self, x: Tensor) -> Tensor:
         return self.out(x) 
 class Residual(nn.Module, co.CoModule):
+    '''
+    Applies the skip connection and layer norm operations
+    '''
     def __init__(self, sublayer: nn.Module, dimension: int, dropout: float = 0.1):
         super().__init__()
         self.call_mode = CallMode.FORWARD_STEPS
@@ -72,6 +75,8 @@ def _scaled_dot_product_attention_default_state(
     V=num_nodes
     N = sequence_len
     Nq = sequence_len
+    # The memory should be kept in the cpu, transformer operations can consume a lot of GPU memory
+    # Keeping the memory in the GPU reserves most of the VRAM which would be unusable in operations thus it would cause a CUDA_OUT_OF_MEMORY error
     Q_mem = init_fn((B, V, Nq, embed_dim_k)).float()
     K_T_mem = init_fn((B, V, embed_dim_k, N)).float()
     V_mem = init_fn((B, V, N, embed_dim_v)).float()
@@ -115,7 +120,6 @@ def _scaled_dot_product_attention_step(
         K_T_mem,  # (B, V, E, Ns)
         V_mem,  # (B, V, Ns, E)
     ) = prev_state
-    # print(Q_mem)
     B, V, E = q_step.shape
     q_step = q_step / math.sqrt(E)
     q_sel = (Q_mem[:B,:, 0] if Q_mem.shape[2] > 0 else q_step).unsqueeze(2).cuda()
@@ -315,18 +319,18 @@ class AttentionHead(nn.Module, co.CoModule):
         """Forward computation for multiple steps with state initialisation
 
         Args:
-            x (Tensor): input.
+            x (Tensor): `(N, T, V, E)` input.
             update_state (bool): Whether internal state should be updated during this operation.
 
         Returns:
-            Tensor: Stepwise layer outputs
+            Tensor: `(N, T, V, E)` Stepwise layer outputs
         """
         _, T, _, _ = x.shape
         query, key, value= self.projection(x)
-        # if key is None:
-        #     key = query
-        # if value is None:
-        #     value = query
+        if key is None:
+            key = query
+        if value is None:
+            value = query
 
         if self.embed_dim_second:
             # N E V T -> N T V E
@@ -348,13 +352,11 @@ class AttentionHead(nn.Module, co.CoModule):
         outs = []
 
         for t in range(T):
-            # print(t)
             o, tmp_state = self._forward_step(query[t], key[t], value[t], T, tmp_state)
             if isinstance(o, Tensor):
                 if self.batch_first:
                     o = o.transpose(0, 1)
                 outs.append(o)
-        # print("here",T,len(outs),outs[0].shape)
 
         if update_state:
             self.set_state(tmp_state)
@@ -369,13 +371,29 @@ class AttentionHead(nn.Module, co.CoModule):
         return o
 
     def attention(self,Q,K,V):
-      sqrt_dk=torch.sqrt(torch.tensor(self.d_k))
-      attention_weights=F.softmax((Q @ K.transpose(-2,-1))/sqrt_dk)
-      attention_vectors=attention_weights @ V
-      return attention_vectors
+        """Computation of the scaled dot product attention of a full sequence at a time
+
+        Args:
+            Q (Tensor): `(N, T, V, d_k)` Query matrix of the sequence.
+            K (Tensor): `(N, T, V, d_k)` Key matrix of the sequence.
+            V (Tensor): `(N, T, V, d_v)` Value matrix of the sequence.
+
+        Returns:
+            Tensor: `(N, T, V, d_v)`Attention vectors of the full sequence
+        """
+        sqrt_dk=torch.sqrt(torch.tensor(self.d_k))
+        attention_weights=F.softmax((Q @ K.transpose(-2,-1))/sqrt_dk)
+        attention_vectors=attention_weights @ V
+        return attention_vectors
 
     def projection(self,x: Tensor):
-        
+        """Projection of the input x into the Query, Key and Value vector spaces
+
+        Args:
+            x (Tensor): input sequence.
+        Returns:
+            Q (Tensor), K (Tensor), V (Tensor)
+        """
         x=x.permute(0,3,2,1)
         Q=self.q_conv(x).permute(0,3,2,1)
         K=self.k_conv(x).permute(0,3,2,1)
@@ -386,24 +404,19 @@ class AttentionHead(nn.Module, co.CoModule):
         batch_size = x.size(0)
         seq_length = x.size(1)
         graph_size=x.size(2)
-        
-        x=x.permute(0,3,2,1)
-        # x=x.transpose(1,2)
-        #Q, K, V=torch.split(self.qkv_conv(x), [self.d_k , self.d_k, self.d_v],
-        #                            dim=1)
-        Q=self.q_conv(x).permute(0,3,2,1)
-        K=self.k_conv(x).permute(0,3,2,1)
-        V=self.v_conv(x).permute(0,3,2,1)
 
-
+        # Computing the Q, K, V matrices for input x
+        Q, K, V= self.projection(x)
 
         x=self.attention(Q,K,V).transpose(1,2).contiguous().view(batch_size,seq_length,graph_size, self.d_k)
         
         return x
 
 class MultiHeadAttention(co.CoModule,nn.Module):
+    ''' Computation of the multi-head attention'''
     def __init__(self, is_continual: bool, num_heads: int, dim_in: int,dim_k,dim_q,dim_v,dropout):
         super().__init__()
+
         self.call_mode = CallMode.FORWARD_STEPS if is_continual else CallMode.FORWARD
         self.heads = nn.ModuleList(
             [AttentionHead(is_continual,dim_in, dim_v, dim_k,dropout=dropout) for _ in range(num_heads)]
@@ -450,9 +463,7 @@ class TransformerGraphEncoderLayer(nn.Module, co.CoModule):
     def clean_state(self):
         self.attention.clean_state()
     def forward(self, src: Tensor) -> Tensor:
-        # print("before",torch.cuda.mem_get_info(torch.device('cuda:0')))
         src = self.attention(self.norm(src))
-        # print("after",torch.cuda.mem_get_info(torch.device('cuda:0')))
         return self.feed_forward(src)
 
 class PositionalEncoder(nn.Module, co.CoModule):
@@ -472,15 +483,12 @@ class PositionalEncoder(nn.Module, co.CoModule):
                 math.cos(pos / (10000 ** ((2 * (i + 1))/d_model)))
                 
         pe = pe.unsqueeze(0)
-        #self.learnable_pe=nn.Linear(d_model, d_model,dtype=torch.float)
         self.norm=nn.LayerNorm(d_model,dtype=torch.float).cuda()
         self.register_buffer('pe', pe)
 
     
     def forward(self, x):
-        # make embeddings relatively larger
-        # x = x * math.sqrt(self.d_model)
-        #add constant to embedding
+        
         seq_len = x.size(1)
         
         x = self.norm(x + Variable(self.pe[:,:seq_len,:,:], \
@@ -498,6 +506,12 @@ class TransformerGraphEncoder(nn.Module, co.CoModule):
         dim_feedforward: int = 512,
         dropout: float = 0.1,
     ):
+        ''' Important Args: 
+            is_continual: If True, the model operates in the continual mode and each attention head will have a memory,
+            num_layers : the number of encoder layers,
+            dim_model : embedding size of the model ,
+            num_heads : the number of heads per Multi-head attention layer ,
+        '''
         super().__init__()
         self.call_mode = CallMode.FORWARD_STEPS if is_continual else CallMode.FORWARD
         self.layers = nn.ModuleList(

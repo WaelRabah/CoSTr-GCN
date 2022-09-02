@@ -7,12 +7,12 @@ from pytorch_lightning.utilities import rank_zero_only
  
 import torch
 from datetime import datetime
-from model import STrGCN
+from model import CoSTrGCN
 import os
 import matplotlib.pyplot as plt
 import collections
 # from data_loaders.data_loader import init_data_loader
-from data_loaders.shrec21_loader import load_data_sets
+from data_loaders.data_loader import load_data_sets
 import pytorch_lightning as pl
 
 class History_dict(LightningLoggerBase):
@@ -85,12 +85,12 @@ def plot_history(history, title: str) -> None:
 
     
 def init_model(graph, optimizer_params, labels,num_classes,dropout_rate=.1):
-    model = STrGCN(graph, optimizer_params, labels, d_model=128,n_heads=8,num_classes=num_classes, dropout=dropout_rate)
+    model = CoSTrGCN(graph, optimizer_params, labels, d_model=128,n_heads=8,num_classes=num_classes, dropout=dropout_rate)
     
 
     return model
 
-def train_model(dataset_name="SHREC17"):
+def train_model(dataset_name="SHREC21"):
     # loading data
     batch_size = 32
     workers = 4
@@ -111,7 +111,7 @@ def train_model(dataset_name="SHREC17"):
     train_loader, test_loader, val_loader, adjacency_matrix = init_data_loader()
 
     labels = [
-        "",
+        "NO GESTURE",
         "RIGHT",
         "KNOB",
         "CROSS",
@@ -145,7 +145,7 @@ def train_model(dataset_name="SHREC17"):
     time_now=datetime.today().strftime('%Y-%m-%d_%H_%M_%S')
     #folder for saving trained model...
     #change this path to the fold where you want to save your pre-trained model
-    model_fold = "./models/STRGCN-{}_{}/".format(
+    model_fold = "./models/CoSTrGCN-{}_{}/".format(
         dataset_name,time_now)
     try:
         os.mkdir(model_fold)
@@ -170,7 +170,7 @@ def train_model(dataset_name="SHREC17"):
     )
     early_stop_callback = EarlyStopping(
         monitor="val_accuracy", min_delta=0.00000001, patience=Early_Stopping, verbose=True, mode="max",check_on_train_epoch_end=True)
-    # logger = TensorBoardLogger("tb_logs", name=f"STrGCN_Model")
+    # logger = TensorBoardLogger("tb_logs", name=f"CoSTrGCN_Model")
     history=History_dict()
     trainer = pl.Trainer(gpus=1, precision=16, log_every_n_steps=5,
                             max_epochs=Max_Epochs, logger=[history], callbacks=[early_stop_callback, checkpoint_callback])
@@ -182,7 +182,7 @@ def train_model(dataset_name="SHREC17"):
     plot_history(history.history,"CoSTrGCN")
 
     # plot_confusion_matrix(confusion_matrix,labels,'Confusion_matrices/confusion_matrix_{}.eps'.format(dataset_name))
-    model = STrGCN.load_from_checkpoint(checkpoint_path=checkpoint_callback.best_model_path,adjacency_matrix=adjacency_matrix, optimizer_params=optimizer_params, labels=labels, d_model=128,n_heads=8,num_classes=num_classes, dropout=dropout_rate)
+    model = CoSTrGCN.load_from_checkpoint(checkpoint_path=checkpoint_callback.best_model_path,adjacency_matrix=adjacency_matrix, optimizer_params=optimizer_params, labels=labels, d_model=128,n_heads=8,num_classes=num_classes, dropout=dropout_rate)
     test_metrics=trainer.test(model,dataloaders=test_loader)
 
     print(test_metrics)
