@@ -7,16 +7,16 @@ import torch.nn.functional as F
 
 def feed_forward(dim_input: int = 128, dim_feedforward: int = 512) -> nn.Module:
     return nn.Sequential(
-        nn.Linear(dim_input, dim_feedforward,dtype=torch.float),
+        nn.Linear(dim_input, dim_feedforward,dtype=torch.float).cuda(),
         nn.Mish(),
-        nn.Linear(dim_feedforward, dim_input,dtype=torch.float),
+        nn.Linear(dim_feedforward, dim_input,dtype=torch.float).cuda(),
     )
     
 class Residual(nn.Module):
     def __init__(self, sublayer: nn.Module, dimension: int, dropout: float = 0.1):
         super().__init__()
         self.sublayer = sublayer
-        self.norm = nn.LayerNorm(dimension,dtype=torch.float)
+        self.norm = nn.LayerNorm(dimension,dtype=torch.float).cuda()
         self.dropout = nn.Dropout(dropout)
 
     def forward(self, *tensors: Tensor) -> Tensor:
@@ -37,19 +37,19 @@ class AttentionHead(nn.Module):
                 dim_k,
                 kernel_size=(kernel_size, 1),
                 padding=(int((kernel_size - 1) / 2), 0),
-                stride=(stride, 1),dtype=torch.float)
+                stride=(stride, 1),dtype=torch.float).cuda()
         self.k_conv=nn.Conv2d(
                 dim_in,
                 dim_k,
                 kernel_size=(kernel_size, 1),
                 padding=(int((kernel_size - 1) / 2), 0),
-                stride=(stride, 1),dtype=torch.float)
+                stride=(stride, 1),dtype=torch.float).cuda()
         self.v_conv=nn.Conv2d(
                 dim_in,
                 dim_v,
                 kernel_size=(kernel_size, 1),
                 padding=(int((kernel_size - 1) / 2), 0),
-                stride=(stride, 1),dtype=torch.float)
+                stride=(stride, 1),dtype=torch.float).cuda()
 
     def attention(self,Q,K,V):
         sqrt_dk=torch.sqrt(torch.tensor(self.d_k))
@@ -81,7 +81,7 @@ class MultiHeadAttention(nn.Module):
         self.heads = nn.ModuleList(
             [AttentionHead(dim_in, dim_v, dim_k) for _ in range(num_heads)]
         )
-        self.linear = nn.Linear(num_heads * dim_k, dim_in,dtype=torch.float)
+        self.linear = nn.Linear(num_heads * dim_k, dim_in,dtype=torch.float).cuda()
 
     def forward(self, x) -> Tensor:
         outs=[]
@@ -114,7 +114,7 @@ class TransformerGraphEncoderLayer(nn.Module):
             dimension=dim_model,
             dropout=dropout,
         )
-        self.norm = nn.LayerNorm(dim_model,dtype=torch.float)
+        self.norm = nn.LayerNorm(dim_model,dtype=torch.float).cuda()
     def forward(self, src: Tensor) -> Tensor:
 
         src = self.attention(self.norm(src))
@@ -139,7 +139,7 @@ class PositionalEncoder(nn.Module):
                 
         pe = pe.unsqueeze(0)
         #self.learnable_pe=nn.Linear(d_model, d_model,dtype=torch.float)
-        self.norm=nn.LayerNorm(d_model,dtype=torch.float)
+        self.norm=nn.LayerNorm(d_model,dtype=torch.float).cuda()
         self.register_buffer('pe', pe)
 
     

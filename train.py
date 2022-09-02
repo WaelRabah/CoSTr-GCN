@@ -1,4 +1,4 @@
-from pytorch_lightning.loggers import TensorBoardLogger
+# from pytorch_lightning.loggers import TensorBoardLogger
 from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning.loggers import LightningLoggerBase
@@ -168,10 +168,10 @@ def train_model(dataset_name="SHREC17"):
     )
     early_stop_callback = EarlyStopping(
         monitor="val_accuracy", min_delta=0.00000001, patience=Early_Stopping, verbose=True, mode="max",check_on_train_epoch_end=True)
-    logger = TensorBoardLogger("tb_logs", name=f"STrGCN_Model")
+    # logger = TensorBoardLogger("tb_logs", name=f"STrGCN_Model")
     history=History_dict()
     trainer = pl.Trainer(gpus=1, precision=16, log_every_n_steps=5,
-                            max_epochs=Max_Epochs, logger=[history,logger], callbacks=[early_stop_callback, checkpoint_callback])
+                            max_epochs=Max_Epochs, logger=[history], callbacks=[early_stop_callback, checkpoint_callback])
 
     # #***********training#***********
     trainer.fit(model, train_loader, val_loader)

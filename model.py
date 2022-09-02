@@ -1,5 +1,5 @@
 import torch
-from layers.continual_transformer_layers import  TransformerGraphEncoder
+from layers.TransformerGraphEncoder import  TransformerGraphEncoder
 from layers.SGCN import  SGCN
 import torch.nn as nn
 import pytorch_lightning as pl
@@ -28,6 +28,7 @@ class STrGCN(pl.LightningModule):
         self.num_classes=num_classes
         self.adjacency_matrix=adjacency_matrix.float()
         self.is_continual=False
+        
         self.train_acc = torchmetrics.Accuracy()
         self.valid_acc = torchmetrics.Accuracy()
         self.test_acc = torchmetrics.Accuracy()
@@ -40,7 +41,7 @@ class STrGCN(pl.LightningModule):
         self.confusion_matrix=torchmetrics.ConfusionMatrix(num_classes)
         self.gcn=SGCN(features_in,d_model,self.adjacency_matrix)
 
-        self.encoder=TransformerGraphEncoder(is_continual=self.is_continual,dropout=dropout,num_heads=n_heads,dim_model=d_model, num_layers=nEncoderlayers)
+        self.encoder=TransformerGraphEncoder(dropout=dropout,num_heads=n_heads,dim_model=d_model, num_layers=nEncoderlayers)
 
         self.out = nn.Sequential(
             nn.Linear(d_model, d_model,dtype=torch.float).cuda(),

@@ -675,7 +675,7 @@ class GraphDataset(Dataset):
     def sample_no_gesture_class(self):
         shuffle(self.ng_sequences_data)
         print(len(self.ng_sequences_data))
-        samples = self.ng_sequences_data[:self.number_of_samples_per_class]
+        samples = self.ng_sequences_data[:self.number_of_samples_per_class * 2]
 
         self.data = [*self.data, *samples]
 
@@ -993,7 +993,7 @@ def load_data_sets(window_size=10, batch_size=32, workers=4):
                             useScaleAug=False,
                             useTranslationAug=False,
                             use_aug_by_sw=True,
-                            sample_classes=True,
+                            sample_classes=False,
                             number_of_samples_per_class=23,
                             is_segmented=True
                             )
@@ -1019,11 +1019,11 @@ def load_data_sets(window_size=10, batch_size=32, workers=4):
 
     val_loader = torch.utils.data.DataLoader(
         test_ds,
-        batch_size=batch_size, shuffle=True,
+        batch_size=batch_size, shuffle=False,
         num_workers=workers, pin_memory=False)
     test_loader = torch.utils.data.DataLoader(
         test_ds,
-        batch_size=1, shuffle=True,
+        batch_size=1, shuffle=False,
         num_workers=workers, pin_memory=False)
 
     return train_loader, val_loader, test_loader, torch.from_numpy(graph.A)

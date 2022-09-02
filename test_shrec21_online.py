@@ -104,8 +104,8 @@ def get_fp_rate(score,labels):
 
 
     cnf_matrix = confusion_matrix(score.detach().cpu(), labels.detach().cpu())
-    FP = cnf_matrix.sum(axis=0) - np.diag(cnf_matrix)
-    FN = cnf_matrix.sum(axis=1) - np.diag(cnf_matrix)
+    FP = cnf_matrix.sum(axis=1) - np.diag(cnf_matrix)
+    FN = cnf_matrix.sum(axis=0) - np.diag(cnf_matrix)
     TP = np.diag(cnf_matrix)
     TN = cnf_matrix.sum() - (FP + FN + TP)
 
@@ -304,6 +304,7 @@ if __name__ == "__main__":
             # print("batch=",i)
             # print("training i:",i)
             x,y,index=batch
+            
             y=torch.stack(y)
             N, T, V, C = x.shape
             # target = torch.stack([torch.stack([target[j][i] for j in range(T)]) for i in range(N)])
@@ -320,6 +321,7 @@ if __name__ == "__main__":
                 window=x[:,t:t+window_size]
                 # print(window.shape)
                 label=get_window_label(y[t:t+window_size])
+                
                 # print(window)
                 # print(label)
                 # input()
