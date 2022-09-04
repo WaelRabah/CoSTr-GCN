@@ -22,7 +22,7 @@ class Feeder_SHREC21(Dataset):
     ):
         self.data_path = data_path
         self.set_name = set_name
-        self.classes = ["NO GESTURE"
+        self.classes = ["NO GESTURE",
                         "RIGHT",
                         "KNOB",
                         "CROSS",
@@ -156,7 +156,6 @@ class Feeder_SHREC21(Dataset):
                     idx, (f, label) in enumerate(labeled_sequence)]
 
             frames = [f for f, l in labeled_sequence]
-            # print(len(self.classes))
             labels_per_frame = [ (1 if self.class_to_idx[l]!=0 else 0)  if self.binary_classes else self.class_to_idx[l]
                                 for f, l in labeled_sequence]
             
@@ -213,7 +212,7 @@ class Feeder_SHREC21(Dataset):
             with open(f'{self.data_path}/{self.set_name}_set/sequences/{seq_idx}.txt', mode="r") as seq_f:
                 sequence = parse_seq_data(seq_f)
             labeled_sequence = [(f, "NO GESTURE") for f in sequence]
-
+            
             for gesture_start, gesture_end, gesture_label in gesture_infos:
                 labeled_sequence = [
                     (np.array(f), gesture_label if int(gesture_start) <=

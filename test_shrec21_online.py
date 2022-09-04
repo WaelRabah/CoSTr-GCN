@@ -28,18 +28,15 @@ labels = [
     "OK",
     "EXPAND",
 ]
-DATASETS_PATH = "datasets/"
-DS_NAME = "shrec21"
-DS_PATH = DATASETS_PATH + "shrec21/"
-train_path = str(DS_PATH + "train_data_joint.npy")
-test_path = str(DS_PATH + "test_data_joint.npy")
-train_label = str(DS_PATH + "train_label.pkl")
-test_label = str(DS_PATH + "test_label.pkl")
+
+
+
+
 batch_size = 32
 workers = 4
 lr = 1e-4
 num_classes = 18
-window_size=10
+window_size=30
 input_shape = (window_size,20,3)
 device = torch.device('cuda')
 d_model=128
@@ -53,7 +50,7 @@ Max_Epochs = 500
 Early_Stopping = 25
 dropout_rate=.3
 num_classes=2
-stride=1
+stride=window_size-20
 def compute_energy(x):
     N, T, V, C = x.shape
 
@@ -75,9 +72,17 @@ def compute_energy(x):
         else :
             w+=w_v
     return w
-def init_data_loader():
-    train_loader, val_loader, test_loader, graph= load_data_sets(is_segmented=False,binary_classes=True)
 
+def init_data_loader():
+    train_loader, val_loader, test_loader, graph = load_data_sets(
+    window_size=window_size,
+        batch_size=batch_size,
+        workers=workers,
+        is_segmented=False,
+        binary_classes=True,
+        use_data_aug=False,
+        use_aug_by_sw=False
+        )
 
     return train_loader, val_loader, test_loader, graph
 
@@ -99,14 +104,14 @@ def get_acc(score, labels):
     return np.sum(outputs == labels) / float(labels.size)
 
 def get_fp_rate(score,labels):
-    confusion_matrix=torchmetrics.ConfusionMatrix(num_classes=num_classes)
+    confusion_matrix=torchmetrics.StatScores(num_classes=num_classes,reduce="micro")
 
 
-    cnf_matrix = confusion_matrix(score.detach().cpu(), labels.detach().cpu())
-    FP = cnf_matrix.sum(axis=1) - np.diag(cnf_matrix)
-    FN = cnf_matrix.sum(axis=0) - np.diag(cnf_matrix)
-    TP = np.diag(cnf_matrix)
-    TN = cnf_matrix.sum() - (FP + FN + TP)
+    TP, FP, TN, FN, SUP = confusion_matrix(score, labels)
+    # FP = cnf_matrix.sum(axis=0) - np.diag(cnf_matrix)
+    # FN = cnf_matrix.sum(axis=1) - np.diag(cnf_matrix)
+    # TP = np.diag(cnf_matrix)
+    # TN = cnf_matrix.sum() - (FP + FN + TP)
 
     FP = FP.type(torch.float)
     TN = TN.type(torch.float)
@@ -156,7 +161,7 @@ if __name__ == "__main__":
 
     # .........inital model
     print("\n loading model.............")
-    model = model = CoSTrGCN.load_from_checkpoint(checkpoint_path="./models/CoSTrGCN-SHREC21_Gesture_No_Gesture_Module/best_model-128-8-v1.ckpt",adjacency_matrix=graph, optimizer_params=optimizer_params, labels=labels, d_model=128,n_heads=8,num_classes=num_classes, dropout=dropout_rate)
+    model = model = CoSTrGCN.load_from_checkpoint(checkpoint_path="./models/CoSTrGCN-SHREC21_2022-09-04_22_27_16/best_model-128-8-v1.ckpt",adjacency_matrix=graph, optimizer_params=optimizer_params, labels=labels, d_model=128,n_heads=8,num_classes=num_classes, dropout=dropout_rate)
     # model_solver = optim.Adam(filter(lambda p: p.requires_grad, model.parameters()), lr=lr)
 
     # # ........set loss
@@ -205,15 +210,17 @@ if __name__ == "__main__":
             score_list = None
             label_list = None   
             num_windows=T-window_size // window_size
+
             for t in tqdm(range(0,T-window_size+1,stride), leave=False):
                 # print(i)
                 window=x[:,t:t+window_size]
-
+                
                 label_l=y[t:t+window_size]
                 # print(label_l)
                 label=get_window_label(label_l)
 
-                window = x[:,t: t+window_size].clone()
+                # window = x[:,t: t+window_size].clone()
+                
                 # if t < 2*stride :
                 #     continue
                 # window_i_m_2 = x[:,(t-2*stride): (t-2*stride)+window_size].clone()

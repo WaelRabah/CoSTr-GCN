@@ -3,8 +3,8 @@ import numpy as np
 from torch.utils.data import Dataset
 import random
 import torch.nn.functional as F
-from data_loader import gendata
-from graph import Graph
+from  .shrec21_loader import gendata
+from .graph import Graph
 
 torch.manual_seed(42)
 torch.cuda.manual_seed(42)
@@ -239,7 +239,7 @@ class GraphDataset(Dataset):
                     # label
                     label=[*label,*[ 0 for _ in range(max_frame-len(label))]]
                 else :
-                    skeleton = self.upsample(skeleton, self.window_size)
+                    skeleton = self.upsample(skeleton, max_frame)
             else :
                 idx_list = self.sample_frames(data_num, max_frame)
                 skeleton = [skeleton[idx] for idx in idx_list]
@@ -254,9 +254,12 @@ class GraphDataset(Dataset):
             skeleton = np.array(skeleton)
             skeleton = torch.from_numpy(skeleton)
         else:
-            skeleton = self.upsample(skeleton, self.window_size)
+            if self.isPadding:
+                # padding
+                skeleton = self.auto_padding(skeleton, self.window_size)
+            else :
+                skeleton = self.upsample(skeleton, self.window_size)
 
-        # print(label)
         return skeleton, label, index
 
     def data_aug(self, skeleton):
@@ -460,10 +463,10 @@ class GraphDataset(Dataset):
 
 
 
-def load_data_sets(window_size=10, batch_size=32, workers=4, is_segmented=False, binary_classes=False):
+def load_data_sets(window_size=10, batch_size=32, workers=4, is_segmented=False, binary_classes=False, use_data_aug=False,use_aug_by_sw=False):
 
     train_ds = GraphDataset("./data/SHREC21", "training", window_size=window_size,
-                            use_data_aug=False,
+                            use_data_aug=use_data_aug,
                             normalize=False,
                             scaleInvariance=False,
                             translationInvariance=False,
@@ -475,7 +478,7 @@ def load_data_sets(window_size=10, batch_size=32, workers=4, is_segmented=False,
                             useNoise=True,
                             useScaleAug=False,
                             useTranslationAug=False,
-                            use_aug_by_sw=False,
+                            use_aug_by_sw=use_aug_by_sw,
                             sample_classes=False,
                             number_of_samples_per_class=23,
                             is_segmented=is_segmented, binary_classes=binary_classes
@@ -486,13 +489,13 @@ def load_data_sets(window_size=10, batch_size=32, workers=4, is_segmented=False,
                            normalize=False,
                            scaleInvariance=False,
                            translationInvariance=False,
-                           isPadding=True,
+                           isPadding=False,
                            number_of_samples_per_class=14,
                            use_aug_by_sw=False,
                            sample_classes=False,
                            is_segmented=is_segmented, binary_classes=binary_classes)
     graph = Graph(layout="SHREC21", strategy="distance")
-    print("train data num: ", len(train_ds))
+    # print("train data num: ", len(train_ds))
     print("test data num: ", len(test_ds))
     train_loader = torch.utils.data.DataLoader(
         train_ds,
@@ -508,4 +511,4 @@ def load_data_sets(window_size=10, batch_size=32, workers=4, is_segmented=False,
         batch_size=1, shuffle=False,
         num_workers=workers, pin_memory=False)
 
-    return train_loader, val_loader, test_loader, torch.from_numpy(graph.A)
+    return train_loader,val_loader,test_loader, torch.from_numpy(graph.A)

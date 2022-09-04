@@ -98,7 +98,6 @@ class CoSTrGCN(pl.LightningModule):
         loss_with_l1 = loss + l1_lambda * l1_norm
 
         self.train_acc(y_hat, y)
-        self.train_f1_score(y_hat, y)
         
         self.log('train_loss', loss,on_epoch=True,on_step=True)
         self.log('train_acc', self.train_acc.compute(), prog_bar=True, on_step=True, on_epoch=True)
@@ -118,7 +117,6 @@ class CoSTrGCN(pl.LightningModule):
         y_hat = self(x)
         loss = F.cross_entropy(y_hat, targets)
         self.valid_acc(y_hat, y)
-        self.val_f1_score(y_hat, y)
         
         self.log('val_loss', loss, prog_bar=True,on_epoch=True,on_step=True)
         self.log('val_accuracy', self.valid_acc.compute(), prog_bar=True, on_step=True, on_epoch=True)
@@ -142,7 +140,6 @@ class CoSTrGCN(pl.LightningModule):
         y_hat = self(x)
         _, preds = torch.max(y_hat, 1)
         self.test_acc(y_hat, targets)
-        self.test_f1_score(y_hat, y)
         
         loss = F.cross_entropy(y_hat, targets)        
         self.log('test_loss', loss, prog_bar=True)
