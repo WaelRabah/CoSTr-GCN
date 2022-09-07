@@ -122,7 +122,7 @@ def _scaled_dot_product_attention_step(
     ) = prev_state
     B, V, E = q_step.shape
     q_step = q_step / math.sqrt(E)
-    q_sel = (Q_mem[:B,:, 0] if Q_mem.shape[2] > 0 else q_step).unsqueeze(2).cuda()
+    q_sel = q_step.unsqueeze(2).cuda()
     # Update states
     # Note: We're allowing the K and V mem to have one more entry than
     # strictly necessary to simplify computatations.
@@ -135,8 +135,8 @@ def _scaled_dot_product_attention_step(
     K_T_new=K_T_new.detach().cpu()
     attn_sm = F.softmax(attn, dim=-1)
     
-    if dropout_p > 0.0:
-        attn_sm = F.dropout(attn_sm, p=dropout_p)
+    # if dropout_p > 0.0:
+    # attn_sm = F.dropout(attn_sm, p=dropout_p)
     
     # (B, V, Nt, Ns) x (B, V, Ns, E) -> (B, V, Nt, E)
     output = torch.bmm(attn_sm, V_new[:B].reshape(-1,T,E).cuda()).reshape(B,V,-1,E)

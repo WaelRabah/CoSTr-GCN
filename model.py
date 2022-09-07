@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 from datetime import datetime
 # import torch_optimizer as optim
 # model definition
-
+from loss import FocalLoss
 
 
  
@@ -23,12 +23,12 @@ class CoSTrGCN(pl.LightningModule):
         # not the best model...
         self.labels=labels
         features_in=3       
-        self.cnf_matrix= torch.zeros(num_classes, num_classes).cuda()
+        self.cnf_matrix= torch.zeros(num_classes, num_classes).cuda()   
         self.Learning_Rate, self.betas, self.epsilon, self.weight_decay=optimizer_params
         self.num_classes=num_classes
         self.adjacency_matrix=adjacency_matrix.float()
         self.is_continual=False
-        
+        self.loss=nn.CrossEntropyLoss()
         self.train_acc = torchmetrics.Accuracy()
         self.valid_acc = torchmetrics.Accuracy()
         self.test_acc = torchmetrics.Accuracy()
@@ -89,7 +89,7 @@ class CoSTrGCN(pl.LightningModule):
         y = y.cuda()
         y = Variable(y, requires_grad=False)
         y_hat = self(x)
-        loss = F.cross_entropy(y_hat, y)
+        loss = self.loss(y_hat, y)
 
         #l1 regularization
         l1_lambda = 1e-4
@@ -115,7 +115,7 @@ class CoSTrGCN(pl.LightningModule):
         y = y.cuda()
         targets = Variable(y, requires_grad=False)
         y_hat = self(x)
-        loss = F.cross_entropy(y_hat, targets)
+        loss = self.loss(y_hat, targets)
         self.valid_acc(y_hat, y)
         
         self.log('val_loss', loss, prog_bar=True,on_epoch=True,on_step=True)
@@ -141,7 +141,7 @@ class CoSTrGCN(pl.LightningModule):
         _, preds = torch.max(y_hat, 1)
         self.test_acc(y_hat, targets)
         
-        loss = F.cross_entropy(y_hat, targets)        
+        loss = self.loss(y_hat, targets)        
         self.log('test_loss', loss, prog_bar=True)
         self.log('test_accuracy', self.test_acc.compute(), prog_bar=True)
 

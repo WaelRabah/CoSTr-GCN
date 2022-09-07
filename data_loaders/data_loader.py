@@ -116,7 +116,8 @@ class GraphDataset(Dataset):
             data = []
             for idx, data_el in enumerate(self.data):
                 if np.array(data_el[0]).shape[0] > 0:
-                    data.append(data_el)
+                    data.append((self.preprocessSkeleton(
+                        torch.from_numpy(np.array(data_el[0])).float()), data_el[1]))
 
             self.data = data
             if self.sample_classes_:
@@ -254,12 +255,9 @@ class GraphDataset(Dataset):
             skeleton = np.array(skeleton)
             skeleton = torch.from_numpy(skeleton)
         else:
-            if self.isPadding:
-                # padding
-                skeleton = self.auto_padding(skeleton, self.window_size)
-            else :
-                skeleton = self.upsample(skeleton, self.window_size)
+            skeleton = self.upsample(skeleton, self.window_size)
 
+        # print(label)
         return skeleton, label, index
 
     def data_aug(self, skeleton):
@@ -467,9 +465,9 @@ def load_data_sets(window_size=10, batch_size=32, workers=4, is_segmented=False,
 
     train_ds = GraphDataset("./data/SHREC21", "training", window_size=window_size,
                             use_data_aug=use_data_aug,
-                            normalize=False,
+                            normalize=True,
                             scaleInvariance=False,
-                            translationInvariance=False,
+                            translationInvariance=True,
                             useRandomMoving=True,
                             isPadding=False,
                             useSequenceFragments=False,
@@ -486,10 +484,10 @@ def load_data_sets(window_size=10, batch_size=32, workers=4, is_segmented=False,
     test_ds = GraphDataset("./data/SHREC21", "test",
                            window_size=window_size,
                            use_data_aug=False,
-                           normalize=False,
+                           normalize=True,
                            scaleInvariance=False,
-                           translationInvariance=False,
-                           isPadding=False,
+                           translationInvariance=True,
+                           isPadding=True,
                            number_of_samples_per_class=14,
                            use_aug_by_sw=False,
                            sample_classes=False,

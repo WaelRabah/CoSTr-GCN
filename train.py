@@ -16,6 +16,7 @@ from data_loaders.data_loader import load_data_sets
 import pytorch_lightning as pl
 
 
+
 class History_dict(LightningLoggerBase):
     def __init__(self):
         super().__init__()
@@ -99,7 +100,7 @@ def train_model(dataset_name="SHREC21"):
     batch_size = 32
     workers = 4
     window_size = 30
-    is_gesture_nogesture_model = True
+    is_gesture_nogesture_model = False
     num_classes = 2 if is_gesture_nogesture_model else 18
 
     # data_cfg = 0
