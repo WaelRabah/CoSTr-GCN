@@ -31,9 +31,9 @@ This package has the following requirements:
 python train.py     
 ```
 ### Evaluation
-1- Download the weights of our [best pre-trained models](https://drive.google.com/drive/folders/11XKDu0uColyt6gnLFvpjQaZFxZzgGyD_?usp=sharing)
-2- Change the path of the model used for evaluation in ```test_online.py (line 160) ```
-3- Run this command ```python test_online.py```
+1- Download the weights of our [best pre-trained models](https://drive.google.com/drive/folders/11XKDu0uColyt6gnLFvpjQaZFxZzgGyD_?usp=sharing) <br/>
+2- Change the path of the model used for evaluation in ```test_online.py (line 160) ``` <br/>
+3- Run this command ```python test_online.py``` <br/>
 <!-- ### Citation
 If you find this code useful in your research, please consider citing:
 ```
