@@ -17,7 +17,8 @@ This package has the following requirements:
 
 * `Python 3.9`
 * `Pytorch v1.11.0`
-
+##ongoing results
+https://docs.google.com/spreadsheets/d/1oIAOZmBZw1WQswEQdHd2ZE7erFaac8kRkg5x2NxzMBk/edit#gid=1688066177 
 ### Training
 1. Download the [SHREC’21 online track dataset](https://univr-vips.github.io/Shrec21/). <br/>
 2. Extract the 'SHREC21.zip' file and place the extracted folder 'SHREC21' into the data folder ( if it doesn't exist create a folder in the root directory and name it data) in the root directory
