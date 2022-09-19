@@ -221,7 +221,7 @@ def get_window_label(label):
 
 def load_model(graph):
     
-    model = CoSTrGCN.load_from_checkpoint(checkpoint_path="./models/CoSTrGCN-SHREC21_2022-09-10_14_32_38/best_model-128-8-v1.ckpt",adjacency_matrix=graph, optimizer_params=optimizer_params, labels=labels, d_model=128,n_heads=8,num_classes=num_classes, dropout=dropout_rate)
+    model = CoSTrGCN.load_from_checkpoint(checkpoint_path="./best_model.ckpt",adjacency_matrix=graph, optimizer_params=optimizer_params, labels=labels, d_model=128,n_heads=8,num_classes=num_classes, dropout=dropout_rate)
     model.eval()
     return model
 torch.backends.cudnn.deterministic = True
