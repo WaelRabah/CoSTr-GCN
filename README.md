@@ -17,7 +17,8 @@ This package has the following requirements:
 
 * `Python 3.9`
 * `Pytorch v1.11.0`
-
+##ongoing results
+https://docs.google.com/spreadsheets/d/1oIAOZmBZw1WQswEQdHd2ZE7erFaac8kRkg5x2NxzMBk/edit#gid=1688066177 
 ### Training
 1. Download the [SHREC’21 online track dataset](https://univr-vips.github.io/Shrec21/). <br/>
 2. Extract the 'SHREC21.zip' file and place the extracted folder 'SHREC21' into the data folder ( if it doesn't exist create a folder in the root directory and name it data) in the root directory
@@ -31,9 +32,9 @@ This package has the following requirements:
 python train.py     
 ```
 ### Evaluation
-1- Download the weights of our [best pre-trained models](https://drive.google.com/drive/folders/11XKDu0uColyt6gnLFvpjQaZFxZzgGyD_?usp=sharing)
-2- Change the path of the model used for evaluation in ```test_online.py (line 160) ```
-3- Run this command ```python test_online.py```
+1- Download the weights of our [best pre-trained models](https://drive.google.com/drive/folders/11XKDu0uColyt6gnLFvpjQaZFxZzgGyD_?usp=sharing) <br/>
+2- Change the path of the model used for evaluation in ```test_online.py (line 160) ``` <br/>
+3- Run this command ```python test_online.py``` <br/>
 <!-- ### Citation
 If you find this code useful in your research, please consider citing:
 ```
