@@ -17,7 +17,8 @@ This package has the following requirements:
 
 * `Python 3.9`
 * `Pytorch v1.11.0`
-##ongoing results
+
+##Excel for Ongoing results
 https://docs.google.com/spreadsheets/d/1oIAOZmBZw1WQswEQdHd2ZE7erFaac8kRkg5x2NxzMBk/edit#gid=1688066177 
 ### Training
 1. Download the [SHREC’21 online track dataset](https://univr-vips.github.io/Shrec21/). <br/>
