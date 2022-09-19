@@ -99,7 +99,7 @@ def train_model(dataset_name="SHREC21"):
     # loading data
     batch_size = 32
     workers = 4
-    window_size = 30
+    window_size = 50
     is_gesture_nogesture_model = False
     num_classes = 2 if is_gesture_nogesture_model else 18
 
@@ -115,7 +115,7 @@ def train_model(dataset_name="SHREC21"):
              workers=workers,
              is_segmented=True,
              binary_classes=is_gesture_nogesture_model,
-             use_data_aug=False,
+             use_data_aug=True,
              use_aug_by_sw=True
              )
 
@@ -151,7 +151,7 @@ def train_model(dataset_name="SHREC21"):
     weight_decay = 5e-4
     optimizer_params = (lr, betas, epsilon, weight_decay)
     Max_Epochs = 500
-    Early_Stopping = 25
+    Early_Stopping = 10
     dropout_rate = .3
 
     time_now = datetime.today().strftime('%Y-%m-%d_%H_%M_%S')
@@ -197,6 +197,7 @@ def train_model(dataset_name="SHREC21"):
     # plot_confusion_matrix(confusion_matrix,labels,'Confusion_matrices/confusion_matrix_{}.eps'.format(dataset_name))
     model = CoSTrGCN.load_from_checkpoint(checkpoint_path=checkpoint_callback.best_model_path, adjacency_matrix=adjacency_matrix,
                                           optimizer_params=optimizer_params, labels=labels, d_model=128, n_heads=8, num_classes=num_classes, dropout=dropout_rate)
+    model.eval()
     test_metrics = trainer.test(model, dataloaders=test_loader)
 
     print(test_metrics)

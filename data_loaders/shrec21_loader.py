@@ -22,7 +22,8 @@ class Feeder_SHREC21(Dataset):
     ):
         self.data_path = data_path
         self.set_name = set_name
-        self.classes = ["NO GESTURE",
+        self.classes = [
+                        "NO GESTURE",
                         "RIGHT",
                         "KNOB",
                         "CROSS",
@@ -40,6 +41,7 @@ class Feeder_SHREC21(Dataset):
                         "TWO",
                         "OK",
                         "EXPAND",
+                        
                         ]
         self.class_to_idx = {class_l: idx for idx,
                              class_l in enumerate(self.classes)}
@@ -205,7 +207,17 @@ class Feeder_SHREC21(Dataset):
                     ng_sequences.append((ng_seq, 0))
                     ng_seq = []
                     continue
-
+            # max_l=0
+            # for k in windows_sub_sequences_per_gesture.keys() :
+            #     max_l= len(windows_sub_sequences_per_gesture[k]) if len(windows_sub_sequences_per_gesture[k]) > max_l else max_l
+            # for k in windows_sub_sequences_per_gesture.keys():
+            #     while len(windows_sub_sequences_per_gesture[k]) < max_l :
+                    
+            #         windows_sub_sequences_per_gesture[k]=[*windows_sub_sequences_per_gesture[k],*windows_sub_sequences_per_gesture[k]]
+            #     windows_sub_sequences_per_gesture[k]=windows_sub_sequences_per_gesture[k][:max_l]
+            # gestures=[]
+            # for k in windows_sub_sequences_per_gesture.keys() :
+            #     gestures=[*gestures,*windows_sub_sequences_per_gesture[k]]
             return gestures, ng_sequences, windows_sub_sequences_per_gesture
 
         def get_full_sequences(seq_idx, gesture_infos):
@@ -279,7 +291,9 @@ def gendata(
                 label = get_window_label(label)
                 windows_sub_sequences_data[label] = [
                     *windows_sub_sequences_data[label], *windows_sub_sequences_per_gesture[label]]
-                data.append((current_skeletons_window, label))
+                for sub_g in windows_sub_sequences_per_gesture[label] :
+                    data.append(sub_g)
+                data.append((current_skeletons_window,label))    
 
         return data, ng_sequences_data, windows_sub_sequences_data
     else:

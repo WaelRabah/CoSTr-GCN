@@ -12,7 +12,7 @@ from datetime import datetime
 # import torch_optimizer as optim
 # model definition
 from loss import FocalLoss
-
+import json
 
  
 class CoSTrGCN(pl.LightningModule):
@@ -27,7 +27,13 @@ class CoSTrGCN(pl.LightningModule):
         self.Learning_Rate, self.betas, self.epsilon, self.weight_decay=optimizer_params
         self.num_classes=num_classes
         self.adjacency_matrix=adjacency_matrix.float()
-        self.is_continual=False
+        self.is_continual=False 
+        self.threshold={
+            i:{"count":0,"threshold_sum":.0,"threshold_avg":.0} for i in range(self.num_classes)
+        }
+        self.best_val_acc=.0
+        self.current_val_acc=.0
+        self.count=0
         self.loss=nn.CrossEntropyLoss()
         self.train_acc = torchmetrics.Accuracy()
         self.valid_acc = torchmetrics.Accuracy()
@@ -35,7 +41,7 @@ class CoSTrGCN(pl.LightningModule):
         self.confusion_matrix=torchmetrics.ConfusionMatrix(num_classes)
         self.gcn=SGCN(features_in,d_model,self.adjacency_matrix)
 
-        self.encoder=TransformerGraphEncoder(dropout=dropout,num_heads=n_heads,dim_model=d_model, num_layers=nEncoderlayers)
+        self.encoder=TransformerGraphEncoder(is_continual=self.is_continual,dropout=dropout,num_heads=n_heads,dim_model=d_model, num_layers=nEncoderlayers)
 
         self.out = nn.Sequential(
             nn.Linear(d_model, d_model,dtype=torch.float).cuda(),
@@ -116,8 +122,17 @@ class CoSTrGCN(pl.LightningModule):
         targets = Variable(y, requires_grad=False)
         y_hat = self(x)
         loss = self.loss(y_hat, targets)
+        for y_e,gt in zip(y,y_hat) :
+            if y_e==gt.argmax():
+                prob=torch.nn.functional.softmax(gt, dim=-1)[y_e]
+                self.threshold[y_e.item()]["threshold_sum"]+=prob.item()
+                self.threshold[y_e.item()]["count"]+=1
+            
+
+                # print(self.threshold[y_e.item()])
         self.valid_acc(y_hat, y)
-        
+        self.current_val_acc+=self.valid_acc.compute()
+        self.count+=1
         self.log('val_loss', loss, prog_bar=True,on_epoch=True,on_step=True)
         self.log('val_accuracy', self.valid_acc.compute(), prog_bar=True, on_step=True, on_epoch=True)
 
@@ -129,6 +144,19 @@ class CoSTrGCN(pl.LightningModule):
 
     def validation_epoch_end(self, outputs):
         self.valid_acc.reset()
+        print(self.current_val_acc / self.count)
+        if (self.current_val_acc / self.count) > self.best_val_acc :
+            self.best_val_acc=self.current_val_acc / self.count
+            for k in self.threshold.keys():
+                if self.threshold[k]["count"] > 0 :
+                    self.threshold[k]["threshold_avg"]=self.threshold[k]["threshold_sum"] / self.threshold[k]["count"]
+            with open('thresholds.json',mode="w") as f:
+                json.dump(self.threshold,f,indent=2)
+        self.threshold={
+                        i:{"count":0,"threshold_sum":.0,"threshold_avg":.0} for i in range(self.num_classes)
+                        }
+        self.current_val_acc=.0
+        self.count=0
 
     def test_step(self, batch, batch_nb):
         # OPTIONAL
@@ -140,7 +168,11 @@ class CoSTrGCN(pl.LightningModule):
         y_hat = self(x)
         _, preds = torch.max(y_hat, 1)
         self.test_acc(y_hat, targets)
-        
+        for y_e,gt in zip(y,y_hat) :
+            if y_e==gt.argmax():
+                prob=torch.nn.functional.softmax(gt, dim=-1)[y_e]
+                self.threshold[y_e.item()]["threshold_sum"]+=prob.item()
+                self.threshold[y_e.item()]["count"]+=1
         loss = self.loss(y_hat, targets)        
         self.log('test_loss', loss, prog_bar=True)
         self.log('test_accuracy', self.test_acc.compute(), prog_bar=True)
@@ -152,6 +184,13 @@ class CoSTrGCN(pl.LightningModule):
     def on_test_end(self):
         time_now=datetime.today().strftime('%Y-%m-%d_%H_%M_%S')
         self.plot_confusion_matrix(f"./Confusion_matrices/Confusion_matrix_{time_now}.eps")
+
+        for k in self.threshold.keys():
+            if self.threshold[k]["count"] > 0 :
+                self.threshold[k]["threshold_avg"]=self.threshold[k]["threshold_sum"] / self.threshold[k]["count"]
+        with open('thresholds.json',mode="w") as f:
+            json.dump(self.threshold,f,indent=2)
+
 
     def configure_optimizers(self):
         # REQUIRED

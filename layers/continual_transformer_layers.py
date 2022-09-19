@@ -120,6 +120,7 @@ def _scaled_dot_product_attention_step(
         K_T_mem,  # (B, V, E, Ns)
         V_mem,  # (B, V, Ns, E)
     ) = prev_state
+    
     B, V, E = q_step.shape
     q_step = q_step / math.sqrt(E)
     q_sel = q_step.unsqueeze(2).cuda()

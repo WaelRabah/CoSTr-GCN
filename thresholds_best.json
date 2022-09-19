@@ -1,0 +1,92 @@
+{
+  "0": {
+    "count": 12,
+    "threshold_sum": 11.034764051437378,
+    "threshold_avg": 0.9195636709531149
+  },
+  "1": {
+    "count": 15,
+    "threshold_sum": 14.286275804042816,
+    "threshold_avg": 0.9524183869361877
+  },
+  "2": {
+    "count": 12,
+    "threshold_sum": 11.10106635093689,
+    "threshold_avg": 0.9250888625780741
+  },
+  "3": {
+    "count": 11,
+    "threshold_sum": 9.557798504829407,
+    "threshold_avg": 0.8688907731663097
+  },
+  "4": {
+    "count": 16,
+    "threshold_sum": 15.987922728061676,
+    "threshold_avg": 0.9992451705038548
+  },
+  "5": {
+    "count": 15,
+    "threshold_sum": 14.388144075870514,
+    "threshold_avg": 0.9592096050580342
+  },
+  "6": {
+    "count": 16,
+    "threshold_sum": 15.98198527097702,
+    "threshold_avg": 0.9988740794360638
+  },
+  "7": {
+    "count": 16,
+    "threshold_sum": 15.98181438446045,
+    "threshold_avg": 0.9988633990287781
+  },
+  "8": {
+    "count": 13,
+    "threshold_sum": 11.079430282115936,
+    "threshold_avg": 0.852263867855072
+  },
+  "9": {
+    "count": 14,
+    "threshold_sum": 13.060877799987793,
+    "threshold_avg": 0.9329198428562709
+  },
+  "10": {
+    "count": 16,
+    "threshold_sum": 15.985067665576935,
+    "threshold_avg": 0.9990667290985584
+  },
+  "11": {
+    "count": 10,
+    "threshold_sum": 9.650516867637634,
+    "threshold_avg": 0.9650516867637634
+  },
+  "12": {
+    "count": 12,
+    "threshold_sum": 10.369456738233566,
+    "threshold_avg": 0.8641213948527972
+  },
+  "13": {
+    "count": 13,
+    "threshold_sum": 12.295097261667252,
+    "threshold_avg": 0.9457767124359424
+  },
+  "14": {
+    "count": 16,
+    "threshold_sum": 15.878009140491486,
+    "threshold_avg": 0.9923755712807178
+  },
+  "15": {
+    "count": 16,
+    "threshold_sum": 15.972947001457214,
+    "threshold_avg": 0.9983091875910759
+  },
+  "16": {
+    "count": 15,
+    "threshold_sum": 14.985947668552399,
+    "threshold_avg": 0.9990631779034932
+  },
+  "17": {
+    "count": 13,
+    "threshold_sum": 12.796746730804443,
+    "threshold_avg": 0.9843651331388034
+  }
+}

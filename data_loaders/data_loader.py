@@ -6,13 +6,14 @@ import torch.nn.functional as F
 from  .shrec21_loader import gendata
 from .graph import Graph
 
+
 torch.manual_seed(42)
 torch.cuda.manual_seed(42)
 
 
 
 num_joint = 20
-max_frame = 1500
+max_frame = 2500
 
 
 
@@ -66,7 +67,8 @@ class GraphDataset(Dataset):
         self.nb_sub_sequences=nb_sub_sequences
         self.sample_classes_=sample_classes
         self.binary_classes=binary_classes
-        self.classes = ["NO GESTURE", "GESTURE"] if binary_classes else ["NO GESTURE",
+        self.classes = ["NO GESTURE", "GESTURE"] if binary_classes else [
+                    "NO GESTURE",
                         "RIGHT",
                         "KNOB",
                         "CROSS",
@@ -84,6 +86,7 @@ class GraphDataset(Dataset):
                         "TWO",
                         "OK",
                         "EXPAND",
+                        
                         ]
         self.load_data()
         
@@ -158,7 +161,7 @@ class GraphDataset(Dataset):
     def sample_no_gesture_class(self):
         random.Random(4).shuffle(self.ng_sequences_data)
         print(len(self.ng_sequences_data))
-        samples =self.ng_sequences_data[:len(self.data)] if self.binary_classes else self.ng_sequences_data[:self.number_of_samples_per_class*2+(self.nb_sub_sequences if self.use_aug_by_sw else 0)]
+        samples =self.ng_sequences_data[:len(self.data)] if self.binary_classes else self.ng_sequences_data[:self.number_of_samples_per_class+(self.nb_sub_sequences if self.use_aug_by_sw else 0)]
 
 
         self.data = [*self.data, *samples]
@@ -255,7 +258,13 @@ class GraphDataset(Dataset):
             skeleton = np.array(skeleton)
             skeleton = torch.from_numpy(skeleton)
         else:
-            skeleton = self.upsample(skeleton, self.window_size)
+            if self.isPadding:
+                # padding
+                skeleton = self.auto_padding(skeleton, self.window_size)
+                skeleton=torch.from_numpy(skeleton)
+
+            else :
+                skeleton = self.upsample(skeleton, self.window_size)
 
         # print(label)
         return skeleton, label, index
@@ -465,11 +474,11 @@ def load_data_sets(window_size=10, batch_size=32, workers=4, is_segmented=False,
 
     train_ds = GraphDataset("./data/SHREC21", "training", window_size=window_size,
                             use_data_aug=use_data_aug,
-                            normalize=True,
+                            normalize=False,
                             scaleInvariance=False,
-                            translationInvariance=True,
+                            translationInvariance=False,
                             useRandomMoving=True,
-                            isPadding=False,
+                            isPadding=True,
                             useSequenceFragments=False,
                             useMirroring=False,
                             useTimeInterpolation=False,
@@ -484,9 +493,9 @@ def load_data_sets(window_size=10, batch_size=32, workers=4, is_segmented=False,
     test_ds = GraphDataset("./data/SHREC21", "test",
                            window_size=window_size,
                            use_data_aug=False,
-                           normalize=True,
+                           normalize=False,
                            scaleInvariance=False,
-                           translationInvariance=True,
+                           translationInvariance=False,
                            isPadding=True,
                            number_of_samples_per_class=14,
                            use_aug_by_sw=False,

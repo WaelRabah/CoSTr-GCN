@@ -1,0 +1,92 @@
+{
+  "0": {
+    "count": 9,
+    "threshold_sum": 8.288094341754913,
+    "threshold_avg": 0.9208993713061014
+  },
+  "1": {
+    "count": 10,
+    "threshold_sum": 8.669694781303406,
+    "threshold_avg": 0.8669694781303405
+  },
+  "2": {
+    "count": 15,
+    "threshold_sum": 14.318403363227844,
+    "threshold_avg": 0.9545602242151896
+  },
+  "3": {
+    "count": 10,
+    "threshold_sum": 9.151879668235779,
+    "threshold_avg": 0.9151879668235778
+  },
+  "4": {
+    "count": 16,
+    "threshold_sum": 15.871833264827728,
+    "threshold_avg": 0.991989579051733
+  },
+  "5": {
+    "count": 12,
+    "threshold_sum": 10.597786128520966,
+    "threshold_avg": 0.8831488440434138
+  },
+  "6": {
+    "count": 16,
+    "threshold_sum": 15.96840226650238,
+    "threshold_avg": 0.9980251416563988
+  },
+  "7": {
+    "count": 16,
+    "threshold_sum": 15.871300399303436,
+    "threshold_avg": 0.9919562749564648
+  },
+  "8": {
+    "count": 14,
+    "threshold_sum": 11.783110916614532,
+    "threshold_avg": 0.8416507797581809
+  },
+  "9": {
+    "count": 16,
+    "threshold_sum": 15.478654146194458,
+    "threshold_avg": 0.9674158841371536
+  },
+  "10": {
+    "count": 16,
+    "threshold_sum": 15.934737265110016,
+    "threshold_avg": 0.995921079069376
+  },
+  "11": {
+    "count": 9,
+    "threshold_sum": 8.661203503608704,
+    "threshold_avg": 0.9623559448454115
+  },
+  "12": {
+    "count": 9,
+    "threshold_sum": 7.4773940443992615,
+    "threshold_avg": 0.8308215604888068
+  },
+  "13": {
+    "count": 11,
+    "threshold_sum": 7.762702643871307,
+    "threshold_avg": 0.705700240351937
+  },
+  "14": {
+    "count": 15,
+    "threshold_sum": 14.563363194465637,
+    "threshold_avg": 0.9708908796310425
+  },
+  "15": {
+    "count": 16,
+    "threshold_sum": 15.93622624874115,
+    "threshold_avg": 0.9960141405463219
+  },
+  "16": {
+    "count": 15,
+    "threshold_sum": 14.36910629272461,
+    "threshold_avg": 0.957940419514974
+  },
+  "17": {
+    "count": 13,
+    "threshold_sum": 12.394202411174774,
+    "threshold_avg": 0.9534001854749826
+  }
+}
