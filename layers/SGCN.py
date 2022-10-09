@@ -27,7 +27,7 @@ class unit_gcn(nn.Module):
 
         # ==========================================
         # number of nodes
-        self.V = 20
+        self.V = 22
 
         # number of input channels
         self.in_channels = in_channels

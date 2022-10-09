@@ -36,7 +36,7 @@ labels = [
 batch_size = 32
 workers = 4
 lr = 1e-4
-num_classes = 18
+num_classes = 15
 window_size=50
 input_shape = (window_size,20,3)
 device = torch.device('cuda')
@@ -50,10 +50,10 @@ optimizer_params=(lr,betas,epsilon,weight_decay)
 Max_Epochs = 500
 Early_Stopping = 25
 dropout_rate=.3
-num_classes=18
-stride=window_size-10
+num_classes=15
+stride=5
 cnf_matrix=None
-with open('thresholds_best.json',mode="r") as f:
+with open('thresholds.json',mode="r") as f:
     thresholds=json.load(f)
 
 def plot_confusion_matrix(cnf_matrix, labels, filename,mode="eps",eps=1e-5) :
@@ -116,6 +116,7 @@ def velocity(x):
 
 def init_data_loader():
     train_loader, val_loader, test_loader, graph = load_data_sets(
+        dataset_name="shrec21",
     window_size=window_size,
         batch_size=batch_size,
         workers=workers,
@@ -221,14 +222,14 @@ def get_window_label(label):
 
 def load_model(graph):
     
-    model = CoSTrGCN.load_from_checkpoint(checkpoint_path="./best_model.ckpt",adjacency_matrix=graph, optimizer_params=optimizer_params, labels=labels, d_model=128,n_heads=8,num_classes=num_classes, dropout=dropout_rate)
+    model = CoSTrGCN.load_from_checkpoint(checkpoint_path="./models/CoSTrGCN-SHREC21_2022-09-28_01_22_55/best_model-128-8-v1.ckpt",adjacency_matrix=graph, optimizer_params=optimizer_params, labels=labels, d_model=128,n_heads=8,num_classes=num_classes, dropout=dropout_rate)
     model.eval()
     return model
 torch.backends.cudnn.deterministic = True
 torch.backends.cudnn.benchmark = False 
 
 if __name__ == "__main__":
-
+    from ttictoc import tic,toc
 
     train_loader, val_loader, test_loader, graph = init_data_loader()
 
@@ -260,15 +261,6 @@ if __name__ == "__main__":
     max_l=0
     min_l=10000
 
-    for i, batch in tqdm(enumerate(train_loader), leave=False):
-        max_l=max(batch[0].shape[1],max_l)
-        min_l=min(batch[0].shape[1],min_l)
-    for i, batch in tqdm(enumerate(test_loader), leave=False):
-        max_l=max(batch[0].shape[1],max_l)
-        min_l=min(batch[0].shape[1],min_l)
-
-    print(min_l,max_l)
-    input()
 
     with torch.no_grad():
         
@@ -290,7 +282,7 @@ if __name__ == "__main__":
         val_avg_precision_epoch=0
         val_f1_epoch = 0
         val_det_rate_epoch = 0
-        for i, batch in tqdm(enumerate(test_loader), leave=False):
+        for i, batch in tqdm(enumerate(test_loader)):
             x,y,index=batch
             
             y=torch.stack(y)
@@ -329,23 +321,22 @@ if __name__ == "__main__":
                 # d_wi_p_1=(w_5-w_3)/((t+2*stride)-t)
                 # if d_wi < eps and d_wi_m_1 > 0 and d_wi_p_1 < 0:
                 compute_std(window,label_l)
+                tic()
                 score = model(window)
+
                 prob=torch.nn.functional.softmax(score, dim=-1)
 
                 score_list_labels= torch.argmax(prob, dim=-1)
-                # print(score_list_labels)
-                # print(prob)
-                # print(label)
-                # input()
+
                 if prob[0][score_list_labels[0].item()] < thresholds[str(score_list_labels[0].item())]['threshold_avg']:
                     score[0][0]=10.
+                exec_time=toc()
 
 
                 prob=torch.nn.functional.softmax(score, dim=-1)
 
                 score_list_labels= torch.argmax(prob, dim=-1)
 
-                # print("through")
                 res.append({
                     "prediction":score_list_labels.item(),
                     "label":label.item(),

@@ -99,9 +99,9 @@ def train_model(dataset_name="SHREC21"):
     # loading data
     batch_size = 32
     workers = 4
-    window_size = 50
+    window_size = 30
     is_gesture_nogesture_model = False
-    num_classes = 2 if is_gesture_nogesture_model else 18
+    num_classes = 2 if is_gesture_nogesture_model else 15
 
     # data_cfg = 0
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -110,13 +110,14 @@ def train_model(dataset_name="SHREC21"):
 
     def init_data_loader():
         train_loader, val_loader, test_loader, graph = load_data_sets(
+            dataset_name="shrec21",
             window_size=window_size,
              batch_size=batch_size,
              workers=workers,
              is_segmented=True,
              binary_classes=is_gesture_nogesture_model,
              use_data_aug=True,
-             use_aug_by_sw=True
+             use_aug_by_sw=False
              )
 
         return train_loader, test_loader, val_loader, graph
@@ -151,7 +152,7 @@ def train_model(dataset_name="SHREC21"):
     weight_decay = 5e-4
     optimizer_params = (lr, betas, epsilon, weight_decay)
     Max_Epochs = 500
-    Early_Stopping = 10
+    Early_Stopping = 15
     dropout_rate = .3
 
     time_now = datetime.today().strftime('%Y-%m-%d_%H_%M_%S')

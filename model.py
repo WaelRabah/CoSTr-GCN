@@ -17,7 +17,7 @@ import json
  
 class CoSTrGCN(pl.LightningModule):
 
-    def __init__(self, adjacency_matrix,optimizer_params, labels, num_classes : int=18, d_model: int=512, n_heads: int=8,
+    def __init__(self, adjacency_matrix,optimizer_params, labels, num_classes : int=14, d_model: int=512, n_heads: int=8,
                  nEncoderlayers: int=6, dropout: float = 0.1):
         super(CoSTrGCN, self).__init__()
         # not the best model...

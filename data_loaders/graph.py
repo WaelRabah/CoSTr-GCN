@@ -47,7 +47,8 @@ class Graph():
         return self.A
 
     def get_edge(self, layout):
-    
+        print(layout)
+        input()
         if layout == "SHREC21":
             self.num_node = 20
             self_link = [(i, i) for i in range(self.num_node)]
@@ -72,6 +73,53 @@ class Graph():
                 (17, 18),
                 (18, 19),
             ]
+            self.edge = self_link + neighbor_link
+            self.center = 0
+        if layout == "ODHG":
+            self.num_node = 22
+            self_link = [(i, i) for i in range(self.num_node)]
+            neighbor_link = [(0, 1),
+                             (0, 2),
+                             (1, 0),
+                             (1, 6),
+                             (1, 10),
+                             (1, 14),
+                             (1, 18),
+                             (2, 0),
+                             (2, 3),
+                             (3, 2),
+                             (3, 4),
+                             (4, 3),
+                             (4, 5),
+                             (5, 4),
+                             (6, 1),
+                             (6, 7),
+                             (7, 6),
+                             (7, 8),
+                             (8, 7),
+                             (8, 9),
+                             (9, 8),
+                             (10, 1),
+                             (10, 11),
+                             (11, 10),
+                             (11, 12),
+                             (12, 11),
+                             (12, 13),
+                             (13, 12),
+                             (14, 1),
+                             (14, 15),
+                             (15, 14),
+                             (15, 16),
+                             (16, 15),
+                             (16, 17),
+                             (17, 16),
+                             (18, 1),
+                             (18, 19),
+                             (19, 18),
+                             (19, 20),
+                             (20, 19),
+                             (20, 21),
+                             (21, 20)]
             self.edge = self_link + neighbor_link
             self.center = 0
         else:

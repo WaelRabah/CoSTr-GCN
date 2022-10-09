@@ -1,9 +1,9 @@
+import this
 import torch
 import numpy as np
 from torch.utils.data import Dataset
 import random
 import torch.nn.functional as F
-from  .shrec21_loader import gendata
 from .graph import Graph
 
 
@@ -23,6 +23,7 @@ class GraphDataset(Dataset):
         data_path,
         set_name,
         window_size,
+        gendata_function=None,
         use_data_aug=False,
         normalize=True,
         scaleInvariance=False,
@@ -67,6 +68,7 @@ class GraphDataset(Dataset):
         self.nb_sub_sequences=nb_sub_sequences
         self.sample_classes_=sample_classes
         self.binary_classes=binary_classes
+        self.gendata_function=gendata_function
         self.classes = ["NO GESTURE", "GESTURE"] if binary_classes else [
                     "NO GESTURE",
                         "RIGHT",
@@ -102,7 +104,7 @@ class GraphDataset(Dataset):
     def load_data(self):
         # Data: N C V T M
         if self.is_segmented :
-            self.data, self.ng_sequences_data, self.gesture_sub_sequences_data = gendata(
+            self.data, self.ng_sequences_data, self.gesture_sub_sequences_data = self.gendata_function(
                 self.data_path,
                 self.set_name,
                 max_frame,
@@ -139,7 +141,7 @@ class GraphDataset(Dataset):
                     self.set_name+" set after augmentation:")
                 self.print_classes_information()
         else :
-            self.data = gendata(
+            self.data = self.gendata_function(
                 self.data_path,
                 self.set_name,
                 max_frame,
@@ -231,6 +233,7 @@ class GraphDataset(Dataset):
 
         skeleton = np.array(data_numpy)
         
+        
         # if self.data_aug :
         #     pass
 
@@ -265,7 +268,7 @@ class GraphDataset(Dataset):
 
             else :
                 skeleton = self.upsample(skeleton, self.window_size)
-
+        
         # print(label)
         return skeleton, label, index
 
@@ -470,9 +473,18 @@ class GraphDataset(Dataset):
 
 
 
-def load_data_sets(window_size=10, batch_size=32, workers=4, is_segmented=False, binary_classes=False, use_data_aug=False,use_aug_by_sw=False):
-
-    train_ds = GraphDataset("./data/SHREC21", "training", window_size=window_size,
+def load_data_sets(dataset_name="shrec21",window_size=10, batch_size=32, workers=4, is_segmented=False, binary_classes=False, use_data_aug=False,use_aug_by_sw=False):
+    print(dataset_name)
+    input()
+    if dataset_name.lower()=="odhg":
+        from  .odhg_loader import gendata
+        layout="ODHG"
+        data_path="./data/ODHG2016"
+    if dataset_name.lower()=="shrec21":
+        from  .shrec21_loader import gendata
+        layout="SHREC21"
+        data_path="./data/SHREC21"
+    train_ds = GraphDataset(data_path, "training",gendata_function=gendata, window_size=window_size,
                             use_data_aug=use_data_aug,
                             normalize=False,
                             scaleInvariance=False,
@@ -490,7 +502,7 @@ def load_data_sets(window_size=10, batch_size=32, workers=4, is_segmented=False,
                             number_of_samples_per_class=23,
                             is_segmented=is_segmented, binary_classes=binary_classes
                             )
-    test_ds = GraphDataset("./data/SHREC21", "test",
+    test_ds = GraphDataset(data_path, "test",gendata_function=gendata,
                            window_size=window_size,
                            use_data_aug=False,
                            normalize=False,
@@ -501,7 +513,7 @@ def load_data_sets(window_size=10, batch_size=32, workers=4, is_segmented=False,
                            use_aug_by_sw=False,
                            sample_classes=False,
                            is_segmented=is_segmented, binary_classes=binary_classes)
-    graph = Graph(layout="SHREC21", strategy="distance")
+    graph = Graph(layout=layout, strategy="distance")
     # print("train data num: ", len(train_ds))
     print("test data num: ", len(test_ds))
     train_loader = torch.utils.data.DataLoader(
