@@ -13,6 +13,7 @@ from functools import partial
 from continual import TensorPlaceholder
 from continual.module import CallMode
 
+
 MaybeTensor=Union[Tensor, TensorPlaceholder]
 State = Tuple[
     Tensor, 
@@ -153,10 +154,11 @@ def _scaled_dot_product_attention_step(
 
 
 class AttentionHead(nn.Module, co.CoModule):
-    def __init__(self, is_continual : bool, dim_in: int, dim_v: int, dim_k: int, kernel_size: int = 1 , stride :int =1, dropout :int=.1):
+    def __init__(self, is_continual : bool, memory_size: int, dim_in: int, dim_v: int, dim_k: int, kernel_size: int = 1 , stride :int =1, dropout :int=.1):
         super().__init__()
         self.call_mode = CallMode.FORWARD_STEPS if is_continual else CallMode.FORWARD
         self.embed_dim_second=False
+        self.memory_size=memory_size
         self.batch_first=True
         self.d_k=dim_k
         self.d_v=dim_v
@@ -353,7 +355,7 @@ class AttentionHead(nn.Module, co.CoModule):
         outs = []
 
         for t in range(T):
-            o, tmp_state = self._forward_step(query[t], key[t], value[t], T, tmp_state)
+            o, tmp_state = self._forward_step(query[t], key[t], value[t], self.memory_size, tmp_state)
             if isinstance(o, Tensor):
                 if self.batch_first:
                     o = o.transpose(0, 1)
@@ -415,12 +417,12 @@ class AttentionHead(nn.Module, co.CoModule):
 
 class MultiHeadAttention(co.CoModule,nn.Module):
     ''' Computation of the multi-head attention'''
-    def __init__(self, is_continual: bool, num_heads: int, dim_in: int,dim_k,dim_q,dim_v,dropout):
+    def __init__(self, is_continual: bool, memory_size: int, num_heads: int, dim_in: int,dim_k,dim_q,dim_v,dropout):
         super().__init__()
 
         self.call_mode = CallMode.FORWARD_STEPS if is_continual else CallMode.FORWARD
         self.heads = nn.ModuleList(
-            [AttentionHead(is_continual,dim_in, dim_v, dim_k,dropout=dropout) for _ in range(num_heads)]
+            [AttentionHead(is_continual, memory_size,dim_in, dim_v, dim_k,dropout=dropout) for _ in range(num_heads)]
         )
         self.linear = nn.Linear(num_heads * dim_k, dim_in,dtype=torch.float).cuda()
     def clean_state(self):
@@ -442,6 +444,7 @@ class TransformerGraphEncoderLayer(nn.Module, co.CoModule):
     def __init__(
         self,
         is_continual:bool=False,
+        memory_size: int=50,
         dim_model: int = 128,
         num_heads: int = 8,
         dim_feedforward: int = 512,
@@ -451,7 +454,7 @@ class TransformerGraphEncoderLayer(nn.Module, co.CoModule):
         self.call_mode = CallMode.FORWARD_STEPS if is_continual else CallMode.FORWARD
         dim_v=dim_q = dim_k = max(dim_model // num_heads, 1)
         self.attention = Residual(
-            MultiHeadAttention(is_continual,num_heads, dim_model,32,32,32,dropout),
+            MultiHeadAttention(is_continual, memory_size,num_heads, dim_model,32,32,32,dropout),
             dimension=dim_model,
             dropout=dropout,
         )
@@ -474,9 +477,9 @@ class PositionalEncoder(nn.Module, co.CoModule):
         
         # create constant 'pe' matrix with values dependant on z
         # pos and i
-        pe = torch.zeros(max_seq_len,22 , d_model)
+        pe = torch.zeros(max_seq_len,20 , d_model)
         for pos in range(max_seq_len):
-          for node_id in range(0,22) :
+          for node_id in range(0,20) :
             for i in range(0, d_model, 2):
                 pe[pos, node_id, i] = \
                 math.sin(pos / (10000 ** ((2 * i)/d_model)))
@@ -501,6 +504,7 @@ class TransformerGraphEncoder(nn.Module, co.CoModule):
     def __init__(
         self,
         is_continual: bool=False,
+        memory_size: int=50,
         num_layers: int = 6,
         dim_model: int = 128,
         num_heads: int = 8,
@@ -517,7 +521,7 @@ class TransformerGraphEncoder(nn.Module, co.CoModule):
         self.call_mode = CallMode.FORWARD_STEPS if is_continual else CallMode.FORWARD
         self.layers = nn.ModuleList(
             [
-            TransformerGraphEncoderLayer(is_continual,dim_model, num_heads, dim_feedforward, dropout)      
+            TransformerGraphEncoderLayer(is_continual, memory_size,dim_model, num_heads, dim_feedforward, dropout)      
             for _ in range(num_layers)
             ]
         )
